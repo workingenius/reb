@@ -56,6 +56,19 @@ class PTNode(object):
                 for nn in n.fetch(tag):
                     yield nn
 
+    def drop(self) -> 'PTNode':
+        """Copy the PTNode but without children"""
+        return self.__class__(self.text, self.start, self.end, tag=self.tag)
+
+    def __eq__(self, o):
+        if isinstance(o, PTNode):
+            return self.text == o.text \
+                and self.start == o.start \
+                and self.end == o.end \
+                and self.children == o.children \
+                and self.tag == o.tag
+        return False
+
 
 class Pattern(object):
     def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
@@ -183,7 +196,7 @@ class PInChars(Pattern):
     def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
         if start >= len(text):
             raise MatchFail
-        
+
         if text[start] in self.chars:
             yield PTNode(text, start=start, end=start + 1)
         else:
@@ -242,7 +255,7 @@ class PRepeat(Pattern):
 
     def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
         for pt in self.sub.extract(text, start):
-            yield pt
+            yield pt.drop()
 
     def __repr__(self):
         to = self._to if isinstance(self._to, int) else ''
@@ -264,7 +277,7 @@ class PAdjacent(Pattern):
 
     def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
         for pt in self.sub.extract(text, start):
-            yield pt
+            yield pt.drop()
 
     def __add__(self, pattern) -> Pattern:
         return PAdjacent(list(self.patterns) + [self.make(pattern)])
@@ -276,13 +289,16 @@ class PAdjacent(Pattern):
         return ''.join('({})'.format(p) for p in self.patterns)
 
 
+# Several helper Patterns
+
+
 class PRepeat0n(Pattern):
     def __init__(self, pattern: Pattern, _to: int = None):
         self.pattern: Pattern = pattern
         self._to: Optional[int] = _to
 
     def extract(self, text, start=0):
-        
+
         def trydepth(depth: int, cur: int):
             if depth == 0:
                 yield PTNode(text, start=start, end=start)

@@ -1,4 +1,4 @@
-from pattern2 import P
+from pattern2 import P, PTNode
 
 
 def test_text_match1():
@@ -96,8 +96,6 @@ def test_repeat_match1():
 
     assert len(ptn.search('abc')) == 1
     assert len(ptn.search('abcabc')) == 1
-    # import pdb; pdb.set_trace()
-    # print(ptn.search('abcabcabc abc ab'))
     assert len(ptn.search('abcabcabc abc ab')) == 2
     assert len(ptn.search('abd')) == 0
 
@@ -108,3 +106,17 @@ def test_repeat_match2():
 
     ptn2 = P.n('aaa')
     assert len(ptn2.search('aaaaaaaaa')) == 1
+
+
+def test_dropped():
+    """PTNodes make by helper patterns should not be in the parse tree"""
+
+    ptn = P.n('aba')
+    assert ptn.search('abababa')[0] == PTNode('abababa', start=0, end=3, children=[])
+    assert ptn.search('abababa')[1] == PTNode('abababa', start=4, end=7, children=[])
+
+    text2 = 'a1x b2z c3z'
+    ptn2 = P.ic('abc') + P.ic('123') + P.ic('xyz')
+    assert ptn2.search(text2)[0] == PTNode(text2, start=0, end=3, children=[])
+    assert ptn2.search(text2)[1] == PTNode(text2, start=4, end=7, children=[])
+    assert ptn2.search(text2)[2] == PTNode(text2, start=8, end=11, children=[])
