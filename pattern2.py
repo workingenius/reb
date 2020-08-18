@@ -96,7 +96,8 @@ class Pattern(object):
             except MatchFail:
                 cur += 1
             else:
-                pts.append(pt)
+                if pt:
+                    pts.append(pt)
                 if pt.end > cur:
                     cur = pt.end
                 else:
@@ -348,6 +349,8 @@ class P(object):
         """ANY Char"""
         return PInChars(chars)
 
+    ic = anyc
+
     @staticmethod
     def nic(chars: str) -> Pattern:
         """Not In Chars"""
@@ -359,7 +362,7 @@ class P(object):
         return PTag(Pattern.make(pattern), tag=tag)
 
     @staticmethod
-    def repeat(pattern, _from: int, _to: int = None, greedy=True) -> Pattern:
+    def repeat(pattern, _from: int = 0, _to: int = None, greedy=True) -> Pattern:
         """repeat a pattern some times
 
         if _to is None, repeat time upbound is not limited
