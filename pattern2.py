@@ -71,10 +71,10 @@ class PTNode(object):
 
 
 class Pattern(object):
-    def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
-        """Extract pattern from <text>, start at <start>
+    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
+        """Match pattern from <text>, start at <start>
 
-        if extract fail, raise MatchFail
+        if match fail, raise MatchFail
         """
         raise NotImplementedError
 
@@ -99,8 +99,8 @@ class Pattern(object):
     def __ror__(self, pattern) -> 'Pattern':
         return PAny([self.make(pattern), self])
 
-    def search(self, text: str) -> List[PTNode]:
-        """Search the pattern in text and return every match"""
+    def extract(self, text: str) -> List[PTNode]:
+        """Extract info from text by the pattern, and return every match, forming a parse tree"""
 
         cur = 0
         ll = len(text)
@@ -108,7 +108,7 @@ class Pattern(object):
 
         while cur < ll:
             try:
-                for pt in self.extract(text, cur):
+                for pt in self.match(text, cur):
                     break
             except MatchFail:
                 cur += 1
@@ -135,7 +135,7 @@ class PText(Pattern):
     def __init__(self, text: str):
         self.text = text
 
-    def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
         if text[start: start + len(self.text)] == self.text:
             yield PTNode(text, start=start, end=start + len(self.text))
         else:
@@ -148,7 +148,7 @@ class PText(Pattern):
 class PAnyChar(Pattern):
     """A pattern that match any character"""
 
-    def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
         if start < len(text):
             yield PTNode(text, start=start, end=start + 1)
         else:
@@ -163,8 +163,8 @@ class PTag(Pattern):
         self.pattern = pattern
         self.tag = tag
 
-    def extract(self, text, start=0) -> Iterable[PTNode]:
-        for pt in self.pattern.extract(text, start):
+    def match(self, text, start=0) -> Iterable[PTNode]:
+        for pt in self.pattern.match(text, start):
             pt.tag = self.tag
             yield pt
 
@@ -176,7 +176,7 @@ class PNotInChars(Pattern):
     def __init__(self, chars: str):
         self.chars: str = chars
 
-    def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
         if start >= len(text):
             raise MatchFail
 
@@ -193,7 +193,7 @@ class PInChars(Pattern):
     def __init__(self, chars: str):
         self.chars: str = chars
 
-    def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
         if start >= len(text):
             raise MatchFail
 
@@ -210,11 +210,11 @@ class PAny(Pattern):
     def __init__(self, patterns):
         self.patterns: List[Pattern] = patterns
 
-    def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
         matched = False
         for pattern in self.patterns:
             try:
-                for pt in pattern.extract(text, start):
+                for pt in pattern.match(text, start):
                     matched = True
                     yield pt
             except MatchFail:
@@ -253,8 +253,8 @@ class PRepeat(Pattern):
 
         return cur
 
-    def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
-        for pt in self.sub.extract(text, start):
+    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
+        for pt in self.sub.match(text, start):
             yield pt.drop()
 
     def __repr__(self):
@@ -275,8 +275,8 @@ class PAdjacent(Pattern):
         else:
             return PTraverse(left=patterns[0], right=self._prepare(patterns[1:]))
 
-    def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
-        for pt in self.sub.extract(text, start):
+    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
+        for pt in self.sub.match(text, start):
             yield pt.drop()
 
     def __add__(self, pattern) -> Pattern:
@@ -297,7 +297,7 @@ class PRepeat0n(Pattern):
         self.pattern: Pattern = pattern
         self._to: Optional[int] = _to
 
-    def extract(self, text, start=0):
+    def match(self, text, start=0):
 
         def trydepth(depth: int, cur: int):
             if depth == 0:
@@ -305,7 +305,7 @@ class PRepeat0n(Pattern):
 
             else:
                 m = False
-                for pt1 in self.pattern.extract(text, cur):
+                for pt1 in self.pattern.match(text, cur):
                     try:
                         for pt2 in trydepth(depth - 1, cur=pt1.end):
                             m = True
@@ -338,11 +338,11 @@ class PTraverse(Pattern):
         self.left: Pattern = left
         self.right: Pattern = right
 
-    def extract(self, text, start=0) -> Iterable[PTNode]:
+    def match(self, text, start=0) -> Iterable[PTNode]:
         matched = False
-        for pt1 in self.left.extract(text, start):
+        for pt1 in self.left.match(text, start):
             try:
-                for pt2 in self.right.extract(text, pt1.end):
+                for pt2 in self.right.match(text, pt1.end):
                     matched = True
                     yield PTNode.lead([pt1, pt2])
             except MatchFail:
@@ -355,9 +355,9 @@ class PReversed(Pattern):
     def __init__(self, pattern: Pattern):
         self.pattern: Pattern = pattern
 
-    def extract(self, text, start=0):
+    def match(self, text, start=0):
         pts = []
-        for pt in self.pattern.extract(text, start):
+        for pt in self.pattern.match(text, start):
             pts.append(pt)
         for pt in reversed(pts):
             yield pt
