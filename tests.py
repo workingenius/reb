@@ -117,6 +117,8 @@ def test_dropped():
 
     text2 = 'a1x b2z c3z'
     ptn2 = P.ic('abc') + P.ic('123') + P.ic('xyz')
-    assert ptn2.extract(text2)[0] == PTNode(text2, start=0, end=3, children=[])
-    assert ptn2.extract(text2)[1] == PTNode(text2, start=4, end=7, children=[])
-    assert ptn2.extract(text2)[2] == PTNode(text2, start=8, end=11, children=[])
+    assert ptn2.extract(text2)[0] == PTNode(text2, start=0, end=3, children=[
+        PTNode(text2, start=0, end=1),
+        PTNode(text2, start=1, end=2),
+        PTNode(text2, start=2, end=3),
+    ])

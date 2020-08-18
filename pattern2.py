@@ -270,14 +270,20 @@ class PAdjacent(Pattern):
         self.sub = self._prepare(patterns)
 
     def _prepare(self, patterns: List[Pattern]) -> Pattern:
+        assert len(patterns) >= 2
         if len(patterns) == 2:
             return PTraverse(left=patterns[0], right=patterns[1])
         else:
-            return PTraverse(left=patterns[0], right=self._prepare(patterns[1:]))
+            return PFlatten(
+                PTraverse(
+                    left=patterns[0],
+                    right=self._prepare(patterns[1:])
+                )
+            )
 
     def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
         for pt in self.sub.match(text, start):
-            yield pt.drop()
+            yield pt
 
     def __add__(self, pattern) -> Pattern:
         return PAdjacent(list(self.patterns) + [self.make(pattern)])
@@ -361,6 +367,19 @@ class PReversed(Pattern):
             pts.append(pt)
         for pt in reversed(pts):
             yield pt
+
+
+class PFlatten(Pattern):
+    def __init__(self, pattern: Pattern):
+        self.pattern: Pattern = pattern
+
+    def match(self, text, start=0):
+        for pt in self.pattern.match(text, start=start):
+            if len(pt.children) < 2:
+                yield pt
+            assert len(pt.children) == 2
+            ptl, ptr = pt.children
+            yield PTNode(text, start=pt.start, end=pt.end, children=[ptl] + ptr.children, tag=pt.tag)
 
 
 class P(object):
