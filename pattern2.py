@@ -12,13 +12,17 @@ class InvalidPattern(Exception):
 class PTNode(object):
     """Parse Tree Node"""
 
-    def __init__(self, content: str, start: int, end: int, children: List['PTNode'] = [], tag=None):
-        self.content: str = content
+    def __init__(self, text: str, start: int, end: int, children: List['PTNode'] = [], tag=None):
+        self.text: str = text
         assert end >= start
         self.start: int = start
         self.end: int = end
         self.children: List['PTNode'] = children
         self.tag = tag
+
+    @property
+    def content(self) -> str:
+        return self.text[self.start: self.end]
 
     def pformat(self, floor=0):
         header = '{}, {}'.format(self.start, self.end)
@@ -34,13 +38,13 @@ class PTNode(object):
         return self.end > self.start
 
     @classmethod
-    def merge(cls, pts):
+    def lead(cls, pts: List['PTNode']) -> 'PTNode':
+        """Make a new PTNode as the common parent of nodes <pts> """
         pts = [p for p in pts if p]
         assert pts
         if len(pts) == 1:
             return pts[0]
-        content = ''.join([pt.content for pt in pts])
-        pt = PTNode(content, pts[0].start, pts[-1].end, children=pts)
+        pt = PTNode(pts[0].text, pts[0].start, pts[-1].end, children=pts)
         return pt
 
     def fetch(self, tag):
@@ -120,7 +124,7 @@ class PText(Pattern):
 
     def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
         if text[start: start + len(self.text)] == self.text:
-            yield PTNode(self.text, start=start, end=start + len(self.text))
+            yield PTNode(text, start=start, end=start + len(self.text))
         else:
             raise MatchFail
 
@@ -133,7 +137,7 @@ class PAnyChar(Pattern):
 
     def extract(self, text: str, start: int = 0) -> Iterable[PTNode]:
         if start < len(text):
-            yield PTNode(text[start], start=start, end=start + 1)
+            yield PTNode(text, start=start, end=start + 1)
         else:
             raise MatchFail
 
@@ -164,7 +168,7 @@ class PNotInChars(Pattern):
             raise MatchFail
 
         if text[start] not in self.chars:
-            yield PTNode(text[start], start=start, end=start + 1)
+            yield PTNode(text, start=start, end=start + 1)
         else:
             raise MatchFail
 
@@ -181,7 +185,7 @@ class PInChars(Pattern):
             raise MatchFail
         
         if text[start] in self.chars:
-            yield PTNode(text[start], start=start, end=start + 1)
+            yield PTNode(text, start=start, end=start + 1)
         else:
             raise MatchFail
 
@@ -281,7 +285,7 @@ class PRepeat0n(Pattern):
         
         def trydepth(depth: int, cur: int):
             if depth == 0:
-                yield PTNode('', start=start, end=start)
+                yield PTNode(text, start=start, end=start)
 
             else:
                 m = False
@@ -289,7 +293,7 @@ class PRepeat0n(Pattern):
                     try:
                         for pt2 in trydepth(depth - 1, cur=pt1.end):
                             m = True
-                            yield PTNode.merge([pt1, pt2])
+                            yield PTNode.lead([pt1, pt2])
                     except MatchFail:
                         pass
                 if not m:
@@ -324,7 +328,7 @@ class PTraverse(Pattern):
             try:
                 for pt2 in self.right.extract(text, pt1.end):
                     matched = True
-                    yield PTNode.merge([pt1, pt2])
+                    yield PTNode.lead([pt1, pt2])
             except MatchFail:
                 pass
         if not matched:
