@@ -365,11 +365,9 @@ class PReversed(Pattern):
 
 class P(object):
     @staticmethod
-    def anyc(chars: str) -> Pattern:
+    def ic(chars: str) -> Pattern:
         """ANY Char"""
         return PInChars(chars)
-
-    ic = anyc
 
     @staticmethod
     def nic(chars: str) -> Pattern:

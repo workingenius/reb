@@ -16,7 +16,7 @@ def test_text_match2():
 
 
 def test_singlechar_match():
-    digit = P.anyc('0123456789')
+    digit = P.ic('0123456789')
     integer = P.n(digit, 1)
 
     pts = integer.extract('  129439  ')
