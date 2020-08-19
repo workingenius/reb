@@ -42,8 +42,6 @@ class PTNode(object):
         """Make a new PTNode as the common parent of nodes <pts> """
         pts = [p for p in pts if p]
         assert pts
-        if len(pts) == 1:
-            return pts[0]
         pt = PTNode(pts[0].text, pts[0].start, pts[-1].end, children=pts)
         return pt
 
@@ -377,10 +375,10 @@ class PFlatten(Pattern):
         for pt in self.pattern.match(text, start=start):
             if len(pt.children) < 2:
                 yield pt
-            assert len(pt.children) == 2
-            ptl, ptr = pt.children
-            yield PTNode(text, start=pt.start, end=pt.end, children=[ptl] + ptr.children, tag=pt.tag)
-
+            else:
+                assert len(pt.children) == 2
+                ptl, ptr = pt.children
+                yield PTNode(text, start=pt.start, end=pt.end, children=[ptl] + ptr.children, tag=pt.tag)
 
 class P(object):
     @staticmethod
