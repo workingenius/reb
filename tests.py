@@ -129,3 +129,18 @@ def test_repeat_match3():
     ptn = P.n('a') + P.n('b') + P.n('c')
     # should not contain substring with zero length
     assert not ptn.extract('def')
+
+
+def test_repeat_match4():
+    ptn = P.n('a', greedy=False) + P.n('b')
+    text = 'aabb'
+    assert ptn.extract(text) == [
+        PTNode(text, 0, 1, children=[
+            PTNode(text, 0, 1, children=[]),
+            PTNode(text, 1, 1, children=[]),
+        ]),
+        PTNode(text, 1, 4, children=[
+            PTNode(text, 1, 2, children=[]),
+            PTNode(text, 2, 4, children=[])
+        ])
+    ]

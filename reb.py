@@ -169,12 +169,14 @@ class Pattern(object):
         while cur < ll:
             try:
                 for pt in self.match(text, cur):
-                    break
+                    if pt:
+                        break
+                else:
+                    raise MatchFail
             except MatchFail:
                 cur += 1
             else:
-                if pt:
-                    pts.append(pt)
+                pts.append(pt)
                 if pt.end > cur:
                     cur = pt.end
                 else:
