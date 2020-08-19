@@ -48,6 +48,10 @@ class PTNode(object):
     @classmethod
     def lead(cls, pts: List['PTNode']) -> 'PTNode':
         """Make a new PTNode as the common parent of nodes <pts> """
+        
+        for p1, p2 in zip(pts[:-1], pts[1:]):
+            assert p1.end == p2.start
+
         pts = [p for p in pts if p]
         assert pts
         pt = PTNode(pts[0].text, pts[0].start, pts[-1].end, children=pts)
@@ -346,7 +350,7 @@ class PRepeat0n(Pattern):
 
         def trydepth(depth: int, cur: int):
             if depth == 0:
-                yield PTNode(text, start=start, end=start)
+                yield PTNode(text, start=cur, end=cur)
 
             else:
                 m = False
