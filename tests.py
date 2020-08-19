@@ -1,4 +1,4 @@
-from pattern2 import P, PTNode
+from reb import P, PTNode
 
 
 def test_text_match1():
