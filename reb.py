@@ -22,7 +22,7 @@ class PTNode(object):
 
     def __init__(self, text: str, start: int, end: int, children: List['PTNode'] = [], tag=None):
         self.text: str = text
-        assert end >= start
+        assert end >= start >= 0
         self.start: int = start
         self.end: int = end
         self.children: List['PTNode'] = children
@@ -78,6 +78,58 @@ class PTNode(object):
                 and self.children == o.children \
                 and self.tag == o.tag
         return False
+
+    def pp(self):
+        try:
+            from termcolor import colored
+        except ImportError:
+            print('Module termcolor is needed')
+
+        else:
+            # for i in tag_lst, tag_lst[i] is the tag most close to the leaf
+            tag_lst = [None] * (self.end - self.start)
+
+            start0 = self.start
+
+            def set_tag(node, tl):
+                """Traverse the parse tree and set tag_lst"""
+                if node.tag is not None:
+                    for i in range(node.start - start0, node.end - start0):
+                        tl[i] = node.tag
+                for cn in node.children:
+                    set_tag(cn, tl)
+
+            set_tag(self, tag_lst)
+
+            colors = ['red', 'green', 'yellow', 'blue', 'magenta']
+            white = 'white'
+
+            def tag_color(tag):
+                if tag is None:
+                    return white
+                return colors[sum(map(ord, tag)) % len(colors)]
+
+            color_lst = [tag_color(tag) for tag in tag_lst]
+
+            # extend several chars on both sides
+            extend_n = 10
+            left_i = max(0, self.start - extend_n)
+            right_i = min(len(self.text), self.end + extend_n)
+
+            left_str = self.text[left_i: self.start]
+            left_str = ('...' + left_str) if left_i > 0 else left_str
+
+            right_str = self.text[self.end: right_i]
+            right_str = (right_str + '...') if right_i < len(self.text) else right_str
+
+            # whole string to print
+            ws = colored(left_str, attrs=['dark'])
+            for offset, color in enumerate(color_lst):
+                i = self.start + offset
+                ws += colored(self.text[i], color)
+            ws += colored(right_str, attrs=['dark'])
+
+            print(ws)
 
 
 class Pattern(object):

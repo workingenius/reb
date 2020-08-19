@@ -73,3 +73,6 @@ pt = ptn.extract(example)
 # 从 parse tree 中提取出标为 “医院” 的片段
 for p in pt:
     print(list(p.fetch(tag='医院')))
+
+    # for hosp in list(p.fetch(tag='医院')):
+    #     hosp.pp()
