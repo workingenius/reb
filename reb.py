@@ -51,9 +51,7 @@ class PTNode(object):
         
         for p1, p2 in zip(pts[:-1], pts[1:]):
             assert p1.end == p2.start
-
-        pts = [p for p in pts if p]
-        assert pts
+            
         pt = PTNode(pts[0].text, pts[0].start, pts[-1].end, children=pts)
         return pt
 

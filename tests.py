@@ -123,3 +123,9 @@ def test_dropped():
         PTNode(text2, start=2, end=3),
         PTNode(text2, start=3, end=4),
     ])
+
+
+def test_repeat_match3():
+    ptn = P.n('a') + P.n('b') + P.n('c')
+    # should not contain substring with zero length
+    assert not ptn.extract('def')
