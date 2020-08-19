@@ -3,12 +3,16 @@
 from reb import P
 
 # 数字
+# ic for "In Chars"
 num = P.ic('1234567890')
 
 # 非标点
+# nic for "Not In Chars"
 nopunc = P.nic('，。、')
 
 # 表示医院的模式
+# n01 for "repeat N times 0 or 1"
+# n for "repeat N times"
 hosp = P.tag(
     P.n(nopunc, 3, 12) + P.ic('院心') + P.n01('附属' + P.n(P.ANYCHAR, 3, 10) + P.ic('院心')),
     tag='医院')
@@ -17,6 +21,7 @@ hosp = P.tag(
 date = P.n(num, 2, 4) + P.ic('-,.年') + P.n(num, 1, 2) + P.ic('-,.月') + P.n01(P.n(num, 1, 2) + '日')
 
 # 一些检查事件
+# any for "matches if ANY sub pattern matches"
 event = P.any('胸部CT', ('PET' + P.n01('-') + 'CT'), '增强CT', '胸部平扫', '肠镜', '穿刺', 'B超')
 
 # 总结一些模式，从中提取医院
@@ -26,6 +31,7 @@ ptn = (
             '...1周前当地医院复查提示...'
     )
 
+    # "|" for clause, each clause must has at least one example
     | P.example(
         ('就' + P.any('诊', '医') + P.n01('于') + hosp),
             '...无声嘶呛咳等不适，就诊于嘉兴市第一医院，2018-7-6查喉镜...',
