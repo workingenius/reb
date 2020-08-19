@@ -250,29 +250,38 @@ class PClause(PAny):
       2. # TODO Clauses should not conflict with each other.
          That is to say, search result of whole pattern should be the same as a single clause
     """
-    def __init__(self, patterns: List['PExample']):
+    def __init__(self, patterns: List[Pattern]):
         for p in patterns:
             self.check(p)
-        super().__init__([p.pattern for p in patterns])
+        super().__init__([self.real_pattern(p) for p in patterns])
 
-    def __or__(self, pattern: 'PExample') -> Pattern:
+    def __or__(self, pattern: Pattern) -> Pattern:
         self.check(pattern)
-        return super().__or__(pattern.pattern)
+        return super().__or__(self.real_pattern(pattern))
 
-    def __ror__(self, pattern: 'PExample') -> Pattern:
+    def __ror__(self, pattern: Pattern) -> Pattern:
         self.check(pattern)
-        return super().__ror__(pattern.pattern)
+        return super().__ror__(self.real_pattern(pattern))
 
-    @staticmethod
-    def check(pattern: 'PExample'):
+    @classmethod
+    def check(cls, pattern: Pattern):
         """Check pattern on the example, possibly raise ExampleFail"""
         assert isinstance(pattern, Pattern)
         assert isinstance(pattern, PExample) and pattern.has_example, \
             'Pattern as a clause must has at least one example'
-        real_pattern = pattern.pattern
+        real_pattern = cls.real_pattern(pattern)
         for e in pattern.examples:
             if not real_pattern.extract(e):
                 raise ExampleFail
+
+    @staticmethod
+    def real_pattern(p):
+        if isinstance(p, PExample):
+            return p.pattern
+        elif isinstance(p, Pattern):
+            return p
+        else:
+            raise TypeError
 
 
 class PRepeat(Pattern):
