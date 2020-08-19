@@ -1,11 +1,19 @@
 from typing import List, Optional, Iterable
 
 
-class MatchFail(Exception):
+class RebException(Exception):
     pass
 
 
-class InvalidPattern(Exception):
+class MatchFail(RebException):
+    pass
+
+
+class InvalidPattern(RebException):
+    pass
+
+
+class ExampleFail(RebException):
     pass
 
 
@@ -92,10 +100,10 @@ class Pattern(object):
         return PAdjacent([self.make(pattern), self])
 
     def __or__(self, pattern) -> 'Pattern':
-        return PAny([self, self.make(pattern)])
+        return PClause([self, self.make(pattern)])
 
     def __ror__(self, pattern) -> 'Pattern':
-        return PAny([self.make(pattern), self])
+        return PClause([self.make(pattern), self])
 
     def extract(self, text: str) -> List[PTNode]:
         """Extract info from text by the pattern, and return every match, forming a parse tree"""
@@ -228,6 +236,39 @@ class PAny(Pattern):
 
     def __repr__(self):
         return '|'.join(['(' + str(p) + ')' for p in self.patterns])
+
+
+class PClause(PAny):
+    """A Pattern Clause
+    
+    A pattern with many clauses is basically the same as PAny, but with example checks.
+      1. A clause must pass all example checks, that is, must has search results.
+      2. # TODO Clauses should not conflict with each other.
+         That is to say, search result of whole pattern should be the same as a single clause
+    """
+    def __init__(self, patterns: List['PExample']):
+        for p in patterns:
+            self.check(p)
+        super().__init__([p.pattern for p in patterns])
+
+    def __or__(self, pattern: 'PExample') -> Pattern:
+        self.check(pattern)
+        return super().__or__(pattern.pattern)
+
+    def __ror__(self, pattern: 'PExample') -> Pattern:
+        self.check(pattern)
+        return super().__ror__(pattern.pattern)
+
+    @staticmethod
+    def check(pattern: 'PExample'):
+        """Check pattern on the example, possibly raise ExampleFail"""
+        assert isinstance(pattern, Pattern)
+        assert isinstance(pattern, PExample) and pattern.has_example, \
+            'Pattern as a clause must has at least one example'
+        real_pattern = pattern.pattern
+        for e in pattern.examples:
+            if not real_pattern.extract(e):
+                raise ExampleFail
 
 
 class PRepeat(Pattern):
@@ -380,6 +421,26 @@ class PFlatten(Pattern):
                 ptl, ptr = pt.children
                 yield PTNode(text, start=pt.start, end=pt.end, children=[ptl] + ptr.children, tag=pt.tag)
 
+
+class PExample(Pattern):
+    """A Pattern with example"""
+
+    def __init__(self, pattern: Pattern, examples):
+        self.pattern: Pattern = pattern
+        self.examples: List[str] = [e for e in examples if e]
+
+    @property
+    def has_example(self) -> bool:
+        return bool(self.examples)
+
+    def __repr__(self):
+        return '(' + repr(self.pattern) + ') **with example**'
+
+    def match(self, text, start=0):
+        # should not reach this line
+        return self.pattern.match(text, start)
+
+
 class P(object):
     @staticmethod
     def ic(chars: str) -> Pattern:
@@ -421,3 +482,22 @@ class P(object):
     @staticmethod
     def pattern(pattern) -> Pattern:
         return Pattern.make(pattern)
+
+    @staticmethod
+    def example(*args):
+        pat = None
+        exs = []
+
+        for arg in args:
+            if isinstance(arg, Pattern):
+                if pat is not None:
+                    raise ValueError('more than one pattern is given')
+                pat = arg
+            elif isinstance(arg, str):
+                exs.append(arg)
+            elif isinstance(arg, list):
+                for e in arg:
+                    assert isinstance(e, str)
+                exs.extend(arg)
+
+        return PExample(pat, exs)
