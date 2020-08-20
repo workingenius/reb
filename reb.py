@@ -360,8 +360,34 @@ class PAdjacent(Pattern):
             )
 
     def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
-        for pt in self.sub.match(text, start):
-            yield pt
+        idx_ptn = 0
+        idx_pos = start
+        mtc_stk: List[Iterable[PTNode]] = [self.patterns[idx_ptn].match(text, idx_pos)]
+        res_stk: List[Optional[PTNode]] = [None]
+
+        while True:
+            try:
+                res_nxt = next(mtc_stk[-1])
+            except StopIteration:
+                idx_ptn -= 1
+                if idx_ptn < 0:
+                    return
+                mtc_stk.pop()
+                res_stk.pop()
+                assert res_stk[-1] is not None
+                idx_pos = res_stk[-1].end
+            else:
+                assert res_stk[-1] != res_nxt
+                res_stk[-1] = res_nxt
+                idx_ptn += 1
+                if idx_ptn < len(self.patterns):
+                    idx_pos = res_nxt.end
+                    mtc_stk.append(self.patterns[idx_ptn].match(text, idx_pos))
+                    res_stk.append(None)
+                else:
+                    yield PTNode.lead(res_stk)
+                    idx_ptn -= 1
+                    idx_pos = res_stk[-1].start
 
     def __add__(self, pattern) -> Pattern:
         return PAdjacent(list(self.patterns) + [self.make(pattern)])
