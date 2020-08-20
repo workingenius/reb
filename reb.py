@@ -345,19 +345,6 @@ class PAdjacent(Pattern):
         assert patterns
         assert len(patterns) >= 2
         self.patterns = patterns
-        self.sub = self._prepare(patterns)
-
-    def _prepare(self, patterns: List[Pattern]) -> Pattern:
-        assert len(patterns) >= 2
-        if len(patterns) == 2:
-            return PTraverse(left=patterns[0], right=patterns[1])
-        else:
-            return PFlatten(
-                PTraverse(
-                    left=patterns[0],
-                    right=self._prepare(patterns[1:])
-                )
-            )
 
     def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
         idx_ptn = 0
