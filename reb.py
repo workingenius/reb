@@ -1,11 +1,7 @@
-from typing import List, Optional, Iterable
+from typing import List, Optional, Iterator
 
 
 class RebException(Exception):
-    pass
-
-
-class MatchFail(RebException):
     pass
 
 
@@ -131,11 +127,8 @@ class PTNode(object):
 
 
 class Pattern(object):
-    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
-        """Match pattern from <text>, start at <start>
-
-        if match fail, raise MatchFail
-        """
+    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+        """Match pattern from <text>, start at <start>, iterate over all possible matches as PTNode"""
         raise NotImplementedError
 
     @classmethod
@@ -167,20 +160,18 @@ class Pattern(object):
         pts = []
 
         while cur < ll:
-            try:
-                for pt in self.match(text, cur):
-                    if pt:
-                        break
-                else:
-                    raise MatchFail
-            except MatchFail:
+            m = False
+            for pt in self.match(text, cur):
+                if pt:
+                    m = True
+                    pts.append(pt)
+                    if pt.end > cur:
+                        cur = pt.end
+                    else:
+                        cur += 1
+                    break
+            if not m:
                 cur += 1
-            else:
-                pts.append(pt)
-                if pt.end > cur:
-                    cur = pt.end
-                else:
-                    cur += 1
 
         return pts
 
@@ -197,11 +188,9 @@ class PText(Pattern):
     def __init__(self, text: str):
         self.text = text
 
-    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         if text[start: start + len(self.text)] == self.text:
             yield PTNode(text, start=start, end=start + len(self.text))
-        else:
-            raise MatchFail
 
     def __repr__(self):
         return repr(self.text)
@@ -210,11 +199,9 @@ class PText(Pattern):
 class PAnyChar(Pattern):
     """A pattern that match any character"""
 
-    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         if start < len(text):
             yield PTNode(text, start=start, end=start + 1)
-        else:
-            raise MatchFail
 
     def __repr__(self):
         return '.'
@@ -225,7 +212,7 @@ class PTag(Pattern):
         self.pattern = pattern
         self.tag = tag
 
-    def match(self, text, start=0) -> Iterable[PTNode]:
+    def match(self, text, start=0) -> Iterator[PTNode]:
         for pt in self.pattern.match(text, start):
             pt.tag = self.tag
             yield pt
@@ -238,14 +225,11 @@ class PNotInChars(Pattern):
     def __init__(self, chars: str):
         self.chars: str = chars
 
-    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         if start >= len(text):
-            raise MatchFail
-
-        if text[start] not in self.chars:
+            return
+        elif text[start] not in self.chars:
             yield PTNode(text, start=start, end=start + 1)
-        else:
-            raise MatchFail
 
     def __repr__(self):
         return '[^{}]'.format(self.chars)
@@ -255,14 +239,11 @@ class PInChars(Pattern):
     def __init__(self, chars: str):
         self.chars: str = chars
 
-    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         if start >= len(text):
-            raise MatchFail
-
-        if text[start] in self.chars:
+            return
+        elif text[start] in self.chars:
             yield PTNode(text, start=start, end=start + 1)
-        else:
-            raise MatchFail
 
     def __repr__(self):
         return '[{}]'.format(self.chars)
@@ -272,17 +253,10 @@ class PAny(Pattern):
     def __init__(self, patterns):
         self.patterns: List[Pattern] = patterns
 
-    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
-        matched = False
+    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         for pattern in self.patterns:
-            try:
-                for pt in pattern.match(text, start):
-                    matched = True
-                    yield pt
-            except MatchFail:
-                pass
-        if not matched:
-            raise MatchFail
+            for pt in pattern.match(text, start):
+                yield pt
 
     def __or__(self, pattern) -> Pattern:
         return PAny(list(self.patterns) + [self.make(pattern)])
@@ -339,6 +313,8 @@ class PClause(PAny):
 class PRepeat(Pattern):
     def __init__(self, pattern: Pattern, _from: int, _to: int = None, greedy=False):
         self.pattern: Pattern = pattern
+        if _to is not None:
+            assert _to >= _from
         self._from: int = _from
         self._to: Optional[int] = _to
         self.greedy: bool = greedy
@@ -350,14 +326,9 @@ class PRepeat(Pattern):
             tail = PRepeat0n(self.pattern)
         elif isinstance(_to, int):
             tail = PRepeat0n(self.pattern, _to - _from)
+        return PAdjacent([pattern] * _from + [tail])
 
-        cur: Pattern = tail
-        for i in range(_from):
-            cur = PTraverse(self.pattern, cur)
-
-        return cur
-
-    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
+    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         for pt in self.sub.match(text, start):
             yield pt.drop()
 
@@ -369,25 +340,38 @@ class PRepeat(Pattern):
 class PAdjacent(Pattern):
     def __init__(self, patterns: List[Pattern]):
         assert patterns
-        assert len(patterns) >= 2
+        assert len(patterns) >= 1
         self.patterns = patterns
-        self.sub = self._prepare(patterns)
 
-    def _prepare(self, patterns: List[Pattern]) -> Pattern:
-        assert len(patterns) >= 2
-        if len(patterns) == 2:
-            return PTraverse(left=patterns[0], right=patterns[1])
-        else:
-            return PFlatten(
-                PTraverse(
-                    left=patterns[0],
-                    right=self._prepare(patterns[1:])
-                )
-            )
+    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+        idx_ptn = 0
+        idx_pos = start
+        mtc_stk: List[Iterator[PTNode]] = [self.patterns[idx_ptn].match(text, idx_pos)]
+        res_stk: List[Optional[PTNode]] = [None]
 
-    def match(self, text: str, start: int = 0) -> Iterable[PTNode]:
-        for pt in self.sub.match(text, start):
-            yield pt
+        while True:
+            try:
+                res_nxt = next(mtc_stk[-1])
+            except StopIteration:
+                idx_ptn -= 1
+                if idx_ptn < 0:
+                    return
+                mtc_stk.pop()
+                res_stk.pop()
+                assert res_stk[-1] is not None
+                idx_pos = res_stk[-1].end
+            else:
+                assert res_stk[-1] != res_nxt
+                res_stk[-1] = res_nxt
+                idx_ptn += 1
+                if idx_ptn < len(self.patterns):
+                    idx_pos = res_nxt.end
+                    mtc_stk.append(self.patterns[idx_ptn].match(text, idx_pos))
+                    res_stk.append(None)
+                else:
+                    yield PTNode.lead(res_stk)
+                    idx_ptn -= 1
+                    idx_pos = res_stk[-1].start
 
     def __add__(self, pattern) -> Pattern:
         return PAdjacent(list(self.patterns) + [self.make(pattern)])
@@ -407,58 +391,18 @@ class PRepeat0n(Pattern):
         self.pattern: Pattern = pattern
         self._to: Optional[int] = _to
 
-    def match(self, text, start=0):
-
-        def trydepth(depth: int, cur: int):
-            if depth == 0:
-                yield PTNode(text, start=cur, end=cur)
-
-            else:
-                m = False
-                for pt1 in self.pattern.match(text, cur):
-                    try:
-                        for pt2 in trydepth(depth - 1, cur=pt1.end):
-                            m = True
-                            yield PTNode.lead([pt1, pt2])
-                    except MatchFail:
-                        pass
-                if not m:
-                    raise MatchFail
-
-        d = 0
-        stop = False
-        matched = False
-        while not stop:
-            try:
-                for pt in trydepth(d, start):
-                    matched = True
-                    yield pt
-            except MatchFail:
-                stop = True
-            d += 1
-            if isinstance(self._to, int) and d > self._to:
-                break
-
-        if not matched:
-            raise MatchFail
-
-
-class PTraverse(Pattern):
-    def __init__(self, left: Pattern, right: Pattern):
-        self.left: Pattern = left
-        self.right: Pattern = right
-
-    def match(self, text, start=0) -> Iterable[PTNode]:
-        matched = False
-        for pt1 in self.left.match(text, start):
-            try:
-                for pt2 in self.right.match(text, pt1.end):
-                    matched = True
-                    yield PTNode.lead([pt1, pt2])
-            except MatchFail:
-                pass
-        if not matched:
-            raise MatchFail
+    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+        # Node List NeXT
+        nl_nxt = [PTNode(text, start, start)]
+        yield PTNode.lead(nl_nxt)  # x* pattern can always match empty string
+        nl_que = [nl_nxt]
+        while nl_que:
+            # Node List PREvious, which has already failed
+            nl_pre = nl_que.pop(0)
+            for n2 in self.pattern.match(text, nl_pre[-1].end):
+                nl_nxt = nl_pre + [n2]
+                yield PTNode.lead(nl_nxt)
+                nl_que.append(nl_nxt)
 
 
 class PReversed(Pattern):
@@ -471,20 +415,6 @@ class PReversed(Pattern):
             pts.append(pt)
         for pt in reversed(pts):
             yield pt
-
-
-class PFlatten(Pattern):
-    def __init__(self, pattern: Pattern):
-        self.pattern: Pattern = pattern
-
-    def match(self, text, start=0):
-        for pt in self.pattern.match(text, start=start):
-            if len(pt.children) < 2:
-                yield pt
-            else:
-                assert len(pt.children) == 2
-                ptl, ptr = pt.children
-                yield PTNode(text, start=pt.start, end=pt.end, children=[ptl] + ptr.children, tag=pt.tag)
 
 
 class PExample(Pattern):

@@ -144,3 +144,10 @@ def test_repeat_match4():
             PTNode(text, 2, 4, children=[])
         ])
     ]
+
+
+def test_match_recursion_max_limit():
+    ptn = P.n('a', greedy=True) + P.n('b')
+    text = 'a' * 2000 + 'b' * 2000
+    # should not raise RecursionError
+    assert ptn.extract(text)
