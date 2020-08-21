@@ -151,3 +151,13 @@ def test_match_recursion_max_limit():
     text = 'a' * 2000 + 'b' * 2000
     # should not raise RecursionError
     assert ptn.extract(text)
+
+
+def test_repeat_zero_spans():
+    ptn = P.n(P.n('a'))
+
+    assert ptn.extract('') == []
+    assert ptn.extract('a') == [PTNode('a', 0, 1)]
+    assert ptn.extract('b') == []
+    assert ptn.extract('bba') == [PTNode('bba', 2, 3)]
+    assert ptn.extract('bbaaa') == [PTNode('bbaaa', 2, 5)]

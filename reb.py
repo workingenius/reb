@@ -400,6 +400,9 @@ class PRepeat0n(Pattern):
             # Node List PREvious, which has already failed
             nl_pre = nl_que.pop(0)
             for n2 in self.pattern.match(text, nl_pre[-1].end):
+                if not n2:
+                    # repeat expect it's sub pattern to proceed
+                    continue
                 nl_nxt = nl_pre + [n2]
                 yield PTNode.lead(nl_nxt)
                 nl_que.append(nl_nxt)
