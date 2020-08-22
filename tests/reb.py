@@ -3,16 +3,16 @@ from reb import P, PTNode
 
 def test_text_match1():
     pts = P.pattern('医院').extract('医院')
-    assert pts[0].content == '医院'
-    assert pts[0].start == 0
-    assert pts[0].end == 2
+    assert pts[0].string == '医院'
+    assert pts[0].start() == 0
+    assert pts[0].end() == 2
 
 
 def test_text_match2():
     pts = P.pattern('医院').extract('到某大医院就诊')
-    assert pts[0].content == '医院'
-    assert pts[0].start == 3
-    assert pts[0].end == 5
+    assert pts[0].string == '医院'
+    assert pts[0].start() == 3
+    assert pts[0].end() == 5
 
 
 def test_singlechar_match():
@@ -20,9 +20,9 @@ def test_singlechar_match():
     integer = P.n(digit, 1)
 
     pts = integer.extract('  129439  ')
-    assert pts[0].content == '129439'
-    assert pts[0].start == 2
-    assert pts[0].end == 8
+    assert pts[0].string == '129439'
+    assert pts[0].start() == 2
+    assert pts[0].end() == 8
 
 
 def test_anychar_match():

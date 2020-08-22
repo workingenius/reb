@@ -19,17 +19,27 @@ class PTNode(object):
     def __init__(self, text: str, start: int, end: int, children: List['PTNode'] = [], tag=None):
         self.text: str = text
         assert end >= start >= 0
-        self.start: int = start
-        self.end: int = end
+        self.index0: int = start
+        self.index1: int = end
         self.children: List['PTNode'] = children
         self.tag = tag
 
     @property
     def content(self) -> str:
-        return self.text[self.start: self.end]
+        return self.text[self.index0: self.index1]
+
+    @property
+    def string(self) -> str:
+        return self.content
+
+    def start(self):
+        return self.index0
+
+    def end(self):
+        return self.index1
 
     def pformat(self, floor=0):
-        header = '{}, {}'.format(self.start, self.end)
+        header = '{}, {}'.format(self.index0, self.index1)
         header = header + ', {}'.format(self.tag) if self.tag else header
         body = '({}) {}'.format(header, self.content[:30])
         body = ('\t' * floor) + body
@@ -39,16 +49,16 @@ class PTNode(object):
         return self.pformat()
 
     def __bool__(self):
-        return self.end > self.start
+        return self.index1 > self.index0
 
     @classmethod
     def lead(cls, pts: List['PTNode']) -> 'PTNode':
         """Make a new PTNode as the common parent of nodes <pts> """
         
         for p1, p2 in zip(pts[:-1], pts[1:]):
-            assert p1.end == p2.start
+            assert p1.index1 == p2.index0
             
-        pt = PTNode(pts[0].text, pts[0].start, pts[-1].end, children=pts)
+        pt = PTNode(pts[0].text, pts[0].index0, pts[-1].index1, children=pts)
         return pt
 
     def fetch(self, tag):
@@ -62,13 +72,13 @@ class PTNode(object):
 
     def drop(self) -> 'PTNode':
         """Copy the PTNode but without children"""
-        return self.__class__(self.text, self.start, self.end, tag=self.tag)
+        return self.__class__(self.text, self.index0, self.index1, tag=self.tag)
 
     def __eq__(self, o):
         if isinstance(o, PTNode):
             return self.text == o.text \
-                and self.start == o.start \
-                and self.end == o.end \
+                and self.index0 == o.index0 \
+                and self.index1 == o.index1 \
                 and self.children == o.children \
                 and self.tag == o.tag
         return False
@@ -81,14 +91,14 @@ class PTNode(object):
 
         else:
             # for i in tag_lst, tag_lst[i] is the tag most close to the leaf
-            tag_lst = [None] * (self.end - self.start)
+            tag_lst = [None] * (self.index1 - self.index0)
 
-            start0 = self.start
+            start0 = self.index0
 
             def set_tag(node, tl):
                 """Traverse the parse tree and set tag_lst"""
                 if node.tag is not None:
-                    for i in range(node.start - start0, node.end - start0):
+                    for i in range(node.index0 - start0, node.index1 - start0):
                         tl[i] = node.tag
                 for cn in node.children:
                     set_tag(cn, tl)
@@ -107,19 +117,19 @@ class PTNode(object):
 
             # extend several chars on both sides
             extend_n = 10
-            left_i = max(0, self.start - extend_n)
-            right_i = min(len(self.text), self.end + extend_n)
+            left_i = max(0, self.index0 - extend_n)
+            right_i = min(len(self.text), self.index1 + extend_n)
 
-            left_str = self.text[left_i: self.start]
+            left_str = self.text[left_i: self.index0]
             left_str = ('...' + left_str) if left_i > 0 else left_str
 
-            right_str = self.text[self.end: right_i]
+            right_str = self.text[self.index1: right_i]
             right_str = (right_str + '...') if right_i < len(self.text) else right_str
 
             # whole string to print
             ws = colored(left_str, attrs=['dark'])
             for offset, color in enumerate(color_lst):
-                i = self.start + offset
+                i = self.index0 + offset
                 ws += colored(self.text[i], color)
             ws += colored(right_str, attrs=['dark'])
 
@@ -165,8 +175,8 @@ class Pattern(object):
                 if pt:
                     m = True
                     pts.append(pt)
-                    if pt.end > cur:
-                        cur = pt.end
+                    if pt.index1 > cur:
+                        cur = pt.index1
                     else:
                         cur += 1
                     break
@@ -365,19 +375,19 @@ class PAdjacent(Pattern):
                 mtc_stk.pop()
                 res_stk.pop()
                 assert res_stk[-1] is not None
-                idx_pos = res_stk[-1].end
+                idx_pos = res_stk[-1].index1
             else:
                 assert res_stk[-1] != res_nxt
                 res_stk[-1] = res_nxt
                 idx_ptn += 1
                 if idx_ptn < len(self.patterns):
-                    idx_pos = res_nxt.end
+                    idx_pos = res_nxt.index1
                     mtc_stk.append(self.patterns[idx_ptn].match(text, idx_pos))
                     res_stk.append(None)
                 else:
                     yield PTNode.lead(res_stk)
                     idx_ptn -= 1
-                    idx_pos = res_stk[-1].start
+                    idx_pos = res_stk[-1].index0
 
     def __add__(self, pattern) -> Pattern:
         return PAdjacent(list(self.patterns) + [self.make(pattern)])
@@ -405,7 +415,7 @@ class PRepeat0n(Pattern):
         while nl_que:
             # Node List PREvious, which has already failed
             nl_pre = nl_que.pop(0)
-            for n2 in self.pattern.match(text, nl_pre[-1].end):
+            for n2 in self.pattern.match(text, nl_pre[-1].index1):
                 if not n2:
                     # repeat expect it's sub pattern to proceed
                     continue
