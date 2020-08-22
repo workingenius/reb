@@ -181,6 +181,11 @@ class Pattern(object):
     def pp(self):
         print(self.pformat())
 
+    @property
+    def re(self):
+        from .to_re import to_re
+        return to_re(self)
+
 
 class PText(Pattern):
     """A plain pattern that just match text as it is"""
@@ -210,6 +215,7 @@ class PAnyChar(Pattern):
 class PTag(Pattern):
     def __init__(self, pattern, tag):
         self.pattern = pattern
+        assert tag is not None
         self.tag = tag
 
     def match(self, text, start=0) -> Iterator[PTNode]:
