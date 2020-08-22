@@ -34,7 +34,7 @@ def pinchars_to_re(pattern: PInChars) -> str:
 @to_re.register(PAny)
 def pany_to_re(pattern: PAny) -> str:
     subs = [to_re(subp) for subp in pattern.patterns]
-    return '(?:' + ')|(?:'.join(subs) + ')'
+    return '|'.join([protect(s) for s in subs])
 
 
 @to_re.register(PTag)
@@ -44,7 +44,7 @@ def ptag_to_re(pattern: PTag) -> str:
 
 @to_re.register(PRepeat)
 def prepeat_to_re(pattern: PRepeat) -> str:
-    single = '(?:' + to_re(pattern.pattern) + ')'
+    single = protect(to_re(pattern.pattern))
     whole = ''
     if pattern._from == 0 and pattern._to is None:
         whole = single + '*'
@@ -70,3 +70,10 @@ def re_escape(text: str) -> str:
     for rc in reserved_chars:
         text = text.replace(rc, r'\\' + rc)
     return text
+
+
+def protect(restr: str) -> str:
+    if restr.startswith('(') and restr.endswith(')'):
+        return restr
+    else:
+        return '(?:' + restr + ')'
