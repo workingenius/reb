@@ -25,12 +25,12 @@ class PTNode(object):
         self.tag = tag
 
     @property
-    def content(self) -> str:
-        return self.text[self.index0: self.index1]
+    def string(self) -> str:
+        return self.text
 
     @property
-    def string(self) -> str:
-        return self.content
+    def content(self) -> str:
+        return self.text[self.index0: self.index1]
 
     def start(self):
         return self.index0
@@ -164,17 +164,23 @@ class Pattern(object):
 
     def extract(self, text: str) -> List[PTNode]:
         """Extract info from text by the pattern, and return every match, forming a parse tree"""
+        nl: List[PTNode] = []
+        for n in self.finditer(text):
+            if n:
+                nl.append(n)
+        return nl
 
+    def finditer(self, text: str) -> Iterator[PTNode]:
+        """Find pattern in text, yield them one after another"""
         cur = 0
         ll = len(text)
-        pts = []
 
         while cur < ll:
             m = False
             for pt in self.match(text, cur):
                 if pt:
                     m = True
-                    pts.append(pt)
+                    yield pt
                     if pt.index1 > cur:
                         cur = pt.index1
                     else:
@@ -183,7 +189,11 @@ class Pattern(object):
             if not m:
                 cur += 1
 
-        return pts
+    def findall(self, text: str) -> List[str]:
+        sl = []
+        for n in self.finditer(text):
+            sl.append(n.string)
+        return sl
 
     def pformat(self):
         return str(self)
