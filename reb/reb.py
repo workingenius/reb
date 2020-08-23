@@ -466,6 +466,18 @@ class PExample(Pattern):
         return self.pattern.match(text, start)
 
 
+class PStarting(Pattern):
+    def match(self, text, start=0):
+        if start == 0:
+            yield PTNode(text, start=start, end=start)
+
+
+class PEnding(Pattern):
+    def match(self, text, start=0):
+        if start == len(text):
+            yield PTNode(text, start=start, end=start)
+
+
 class P(object):
     @staticmethod
     def ic(chars: str) -> Pattern:
@@ -497,8 +509,6 @@ class P(object):
         """A pattern can be both match or not"""
         return cls.repeat(Pattern.make(pattern), 0, 1, greedy=greedy)
 
-    ANYCHAR = PAnyChar()
-
     @staticmethod
     def any(*patterns) -> Pattern:
         """Try to match patterns in order, select the first one match"""
@@ -526,3 +536,14 @@ class P(object):
                 exs.extend(arg)
 
         return PExample(pat, exs)
+
+    ANYCHAR: Pattern
+    STARTING: Pattern
+    ENDING: Pattern
+    NEWLINE: Pattern
+
+
+P.ANYCHAR = PAnyChar()
+P.STARTING = PStarting()
+P.ENDING = PEnding()
+P.NEWLINE = P.any(P.pattern('\r\n'), P.ic('\r\n'))

@@ -170,6 +170,43 @@ def test_repeat_zero_spans():
     assert ptn.extract('bbaaa') == [PTNode('bbaaa', 2, 5)]
 
 
+def test_pstarting1():
+    ptn = P.STARTING + 'abc'
+    assert ptn.extract('abc') == [PTNode('abc', 0, 3, children=[
+        PTNode('abc', 0, 0),
+        PTNode('abc', 0, 3),
+    ])]
+    assert ptn.extract(' abc') == []
+
+
+def test_pending1():
+    ptn = 'abc' + P.ENDING
+    assert ptn.extract('abc') == [PTNode('abc', 0, 3, children=[
+        PTNode('abc', 0, 3),
+        PTNode('abc', 3, 3),
+    ])]
+    assert ptn.extract('abc ') == []
+
+
+def test_pnewline1():
+    ptn = 'abc' + P.NEWLINE + 'abc'
+    assert ptn.extract('abcabc') == []
+
+    text = 'abc\nabc'
+    assert ptn.extract(text) == [PTNode(text, 0, 7, children=[
+        PTNode(text, 0, 3),
+        PTNode(text, 3, 4),
+        PTNode(text, 4, 7),
+    ])]
+
+    text = 'abc\r\nabc'
+    assert ptn.extract(text) == [PTNode(text, 0, 8, children=[
+        PTNode(text, 0, 3),
+        PTNode(text, 3, 5),
+        PTNode(text, 5, 8),
+    ])]
+
+
 class TestRebBehaviourSameAsRE(object):
     def ensure_behaviour_same(self, pattern, text: str):
         l0 = list(re.compile(pattern.re).finditer(text))
