@@ -38,15 +38,13 @@ class PTNode(object):
     def end(self):
         return self.index1
 
-    def pformat(self, floor=0):
-        header = '{}, {}'.format(self.index0, self.index1)
-        header = header + ', {}'.format(self.tag) if self.tag else header
-        body = '({}) {}'.format(header, self.content[:30])
-        body = ('\t' * floor) + body
-        return '\n'.join([body] + [pt.pformat(floor + 1) for pt in self.children])
-
     def __repr__(self):
-        return self.pformat()
+        c = '{}, {}, content={}'.format(self.index0, self.index1, repr(self.content))
+        if self.tag:
+            c += ', tag={}'.format(repr(self.tag))
+        elif self.children:
+            c += ', children=[{}]'.format(', '.join([repr(n) for n in self.children]))
+        return 'PTNode(' + c + ')'
 
     def __bool__(self):
         return self.index1 > self.index0
