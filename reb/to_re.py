@@ -2,6 +2,7 @@
 
 
 from functools import singledispatch
+from re import escape as re_escape
 
 from .reb import Pattern, PText, PAnyChar, PNotInChars, PInChars, PAny, PTag, PRepeat, PAdjacent
 
@@ -61,15 +62,8 @@ def prepeat_to_re(pattern: PRepeat) -> str:
 
 @to_re.register(PAdjacent)
 def padjacent_to_re(pattern: PAdjacent) -> str:
-    subs = [to_re(p) for p in pattern.patterns]
-    return '(?:' + ')('.join(subs) + ')'
-
-
-def re_escape(text: str) -> str:
-    reserved_chars = [r'\\', r'|', r'(', r')', r'[', r']', r'*', r'+', r'?', r'{', r'}']
-    for rc in reserved_chars:
-        text = text.replace(rc, r'\\' + rc)
-    return text
+    subs = [protect(to_re(p)) for p in pattern.patterns]
+    return ''.join(subs)
 
 
 def protect(restr: str) -> str:
