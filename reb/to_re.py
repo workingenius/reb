@@ -73,7 +73,4 @@ def re_escape(text: str) -> str:
 
 
 def protect(restr: str) -> str:
-    if restr.startswith('(') and restr.endswith(')'):
-        return restr
-    else:
-        return '(?:' + restr + ')'
+    return '(?:' + restr + ')'

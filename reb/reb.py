@@ -175,17 +175,16 @@ class Pattern(object):
         cur = 0
         ll = len(text)
 
-        while cur < ll:
+        while cur <= ll:
             m = False
             for pt in self.match(text, cur):
-                if pt:
-                    m = True
-                    yield pt
-                    if pt.index1 > cur:
-                        cur = pt.index1
-                    else:
-                        cur += 1
-                    break
+                m = True
+                yield pt
+                if pt.index1 > cur:
+                    cur = pt.index1
+                else:
+                    cur += 1
+                break
             if not m:
                 cur += 1
 
@@ -387,7 +386,7 @@ class PAdjacent(Pattern):
                 assert res_stk[-1] is not None
                 idx_pos = res_stk[-1].index1
             else:
-                assert res_stk[-1] != res_nxt
+                # assert res_stk[-1] != res_nxt
                 res_stk[-1] = res_nxt
                 idx_ptn += 1
                 if idx_ptn < len(self.patterns):
@@ -418,6 +417,8 @@ class PRepeat0n(Pattern):
         self._to: Optional[int] = _to
 
     def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+        if self._to is not None and (self._to <= 0):
+            return
         # Node List NeXT
         nl_nxt = [PTNode(text, start, start)]
         yield PTNode.lead(nl_nxt)  # x* pattern can always match empty string
@@ -425,6 +426,8 @@ class PRepeat0n(Pattern):
         while nl_que:
             # Node List PREvious, which has already failed
             nl_pre = nl_que.pop(0)
+            if self._to is not None and (len(nl_pre) - 1 >= self._to):
+                continue
             for n2 in self.pattern.match(text, nl_pre[-1].index1):
                 if not n2:
                     # repeat expect it's sub pattern to proceed

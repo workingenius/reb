@@ -1,16 +1,18 @@
+import re
+
 from reb import P, PTNode
 
 
 def test_text_match1():
     pts = P.pattern('医院').extract('医院')
-    assert pts[0].string == '医院'
+    assert pts[0].content == '医院'
     assert pts[0].start() == 0
     assert pts[0].end() == 2
 
 
 def test_text_match2():
     pts = P.pattern('医院').extract('到某大医院就诊')
-    assert pts[0].string == '医院'
+    assert pts[0].content == '医院'
     assert pts[0].start() == 3
     assert pts[0].end() == 5
 
@@ -20,7 +22,7 @@ def test_singlechar_match():
     integer = P.n(digit, 1)
 
     pts = integer.extract('  129439  ')
-    assert pts[0].string == '129439'
+    assert pts[0].content == '129439'
     assert pts[0].start() == 2
     assert pts[0].end() == 8
 
@@ -108,6 +110,15 @@ def test_repeat_match2():
     assert len(ptn2.extract('aaaaaaaaa')) == 1
 
 
+def test_prepeat_match3():
+    ptn = P.n('a', 1, 3)
+    assert ptn.extract('') == []
+    assert ptn.extract('a') == [PTNode('a', 0, 1)]
+    assert ptn.extract('aa') == [PTNode('aa', 0, 2)]
+    assert ptn.extract('aaa') == [PTNode('aaa', 0, 3)]
+    assert ptn.extract('aaaa') == [PTNode('aaaa', 0, 3), PTNode('aaaa', 3, 4)]
+
+
 def test_dropped():
     """PTNodes make by helper patterns should not be in the parse tree"""
 
@@ -135,14 +146,10 @@ def test_repeat_match4():
     ptn = P.n('a', greedy=False) + P.n('b')
     text = 'aabb'
     assert ptn.extract(text) == [
-        PTNode(text, 0, 1, children=[
-            PTNode(text, 0, 1, children=[]),
-            PTNode(text, 1, 1, children=[]),
+        PTNode(text, 2, 4, children=[
+            PTNode(text, 2, 2),
+            PTNode(text, 2, 4),
         ]),
-        PTNode(text, 1, 4, children=[
-            PTNode(text, 1, 2, children=[]),
-            PTNode(text, 2, 4, children=[])
-        ])
     ]
 
 
@@ -161,3 +168,102 @@ def test_repeat_zero_spans():
     assert ptn.extract('b') == []
     assert ptn.extract('bba') == [PTNode('bba', 2, 3)]
     assert ptn.extract('bbaaa') == [PTNode('bbaaa', 2, 5)]
+
+
+class TestRebBehaviourSameAsRE(object):
+    def ensure_behaviour_same(self, pattern, text: str):
+        l0 = list(re.compile(pattern.re).finditer(text))
+        l1 = list(pattern.finditer(text))
+        assert len(l0) == len(l1)
+        for m0, n1 in zip(l0, l1):
+            assert m0.start() == n1.start()
+            assert m0.end() == n1.end()
+
+    def test_ptext1(self):
+        ptn = P.pattern('abc')
+        self.ensure_behaviour_same(ptn, '  bca   ')
+        self.ensure_behaviour_same(ptn, '  abc   ')
+        self.ensure_behaviour_same(ptn, '  abc   abc  ')
+
+    def test_panychar1(self):
+        ptn = P.ANYCHAR
+        self.ensure_behaviour_same(ptn, 'c')
+        self.ensure_behaviour_same(ptn, '')
+        self.ensure_behaviour_same(ptn, 'abcd  ')  # TODO Consider '\n'
+
+    def test_pnotinchars1(self):
+        ptn = P.nic('abcd')
+        self.ensure_behaviour_same(ptn, 'abcd')
+        self.ensure_behaviour_same(ptn, 'abce')
+        self.ensure_behaviour_same(ptn, 'eeee')
+
+    def test_pinchars1(self):
+        ptn = P.ic('abcd')
+        self.ensure_behaviour_same(ptn, 'abcd')
+        self.ensure_behaviour_same(ptn, 'abee')
+        self.ensure_behaviour_same(ptn, 'eeee')
+
+    def test_pany1(self):
+        ptn = P.any(
+            'convention',
+            'insertion',
+            'creation',
+            'modification',
+            'sensation',
+            'convertion',
+        )
+
+        self.ensure_behaviour_same(ptn, '')
+        self.ensure_behaviour_same(ptn, 'abc')
+        self.ensure_behaviour_same(ptn, ' creation')
+        self.ensure_behaviour_same(ptn, ' creation satification convention')
+
+    def test_prepeat1(self):
+        ptn = P.n('a')
+        self.ensure_behaviour_same(ptn, '')
+        self.ensure_behaviour_same(ptn, 'a')
+        self.ensure_behaviour_same(ptn, 'aa')
+        self.ensure_behaviour_same(ptn, 'aaa')
+        self.ensure_behaviour_same(ptn, ' aaa ')
+        self.ensure_behaviour_same(ptn, ' ababa ')
+        self.ensure_behaviour_same(ptn, ' ababa a')
+
+    def test_prepeat2(self):
+        ptn = P.n('a', 1)
+        self.ensure_behaviour_same(ptn, '')
+        self.ensure_behaviour_same(ptn, 'a')
+        self.ensure_behaviour_same(ptn, 'aa')
+        self.ensure_behaviour_same(ptn, 'aaa')
+        self.ensure_behaviour_same(ptn, ' aaa ')
+        self.ensure_behaviour_same(ptn, ' ababa ')
+        self.ensure_behaviour_same(ptn, ' ababa a')
+
+    def test_prepeat3(self):
+        ptn = P.n('a', 0, 1)
+        self.ensure_behaviour_same(ptn, '')
+        self.ensure_behaviour_same(ptn, 'a')
+        self.ensure_behaviour_same(ptn, 'aa')
+        self.ensure_behaviour_same(ptn, 'aaa')
+        self.ensure_behaviour_same(ptn, ' aaa ')
+        self.ensure_behaviour_same(ptn, ' ababa ')
+        self.ensure_behaviour_same(ptn, ' ababa a')
+
+    def test_prepeat4(self):
+        ptn = P.n('a', 1, 3)
+        self.ensure_behaviour_same(ptn, '')
+        self.ensure_behaviour_same(ptn, 'a')
+        self.ensure_behaviour_same(ptn, 'aa')
+        self.ensure_behaviour_same(ptn, 'aaa')
+        self.ensure_behaviour_same(ptn, 'aaaa')
+        self.ensure_behaviour_same(ptn, ' aaaa ')
+        self.ensure_behaviour_same(ptn, ' aaa ')
+        self.ensure_behaviour_same(ptn, ' ababa ')
+        self.ensure_behaviour_same(ptn, ' ababa a')
+
+    def test_padjacent1(self):
+        ptn = P.n(P.ANYCHAR + '=' + P.n(' ') + P.n(P.ANYCHAR) + ';', 1)
+        self.ensure_behaviour_same(ptn, '')
+        self.ensure_behaviour_same(ptn, 'y= 2;')
+        # following cases do not pass, as search order differs.
+        # self.ensure_behaviour_same(ptn, 'x=1; y= 2;')
+        # self.ensure_behaviour_same(ptn, 'x=1; y= 2; zzz==xxx;;')
