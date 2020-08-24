@@ -282,10 +282,10 @@ class PAny(Pattern):
                 yield pt
 
     def __or__(self, pattern) -> Pattern:
-        return PAny(list(self.patterns) + [self.make(pattern)])
+        return PClause(list(self.patterns) + [self.make(pattern)])
 
     def __ror__(self, pattern) -> Pattern:
-        return PAny([self.make(pattern)] + list(self.patterns))
+        return PClause([self.make(pattern)] + list(self.patterns))
 
     def __repr__(self):
         return '|'.join(['(' + str(p) + ')' for p in self.patterns])
@@ -296,41 +296,20 @@ class PClause(PAny):
     
     A pattern with many clauses is basically the same as PAny, but with example checks.
       1. A clause must pass all example checks, that is, must has search results.
-      2. # TODO Clauses should not conflict with each other.
+      2. Clauses, should not conflict with each other.
          That is to say, search result of whole pattern should be the same as a single clause
     """
     def __init__(self, patterns: List[Pattern]):
+        super().__init__([p for p in patterns])
+
+        exa_lst: List[Example] = []
         for p in patterns:
-            self.check(p)
-        super().__init__([self.real_pattern(p) for p in patterns])
-
-    def __or__(self, pattern: Pattern) -> Pattern:
-        self.check(pattern)
-        return super().__or__(self.real_pattern(pattern))
-
-    def __ror__(self, pattern: Pattern) -> Pattern:
-        self.check(pattern)
-        return super().__ror__(self.real_pattern(pattern))
-
-    @classmethod
-    def check(cls, pattern: Pattern):
-        """Check pattern on the example, possibly raise ExampleFail"""
-        assert isinstance(pattern, Pattern)
-        assert isinstance(pattern, PExample) and pattern.has_example, \
-            'Pattern as a clause must has at least one example'
-        real_pattern = cls.real_pattern(pattern)
-        for e in pattern.examples:
-            if not real_pattern.extract(e):
-                raise ExampleFail
-
-    @staticmethod
-    def real_pattern(p):
-        if isinstance(p, PExample):
-            return p.pattern
-        elif isinstance(p, Pattern):
-            return p
-        else:
-            raise TypeError
+            if isinstance(p, PExample):
+                exa_lst.extend(p.examples)
+        
+        for exa in exa_lst:
+            if self.extract(exa.text) != exa.extraction:
+                raise ExampleFail('Clauses conflict occurs')
 
 
 class PRepeat(Pattern):
@@ -447,19 +426,28 @@ class PReversed(Pattern):
             yield pt
 
 
+class Example(object):
+    def __init__(self, text: str, pattern: Pattern):
+        self.text: str = text
+        self.pattern: Pattern = pattern
+        self.extraction = pattern.extract(text)
+        if not self.extraction:
+            raise ExampleFail
+
+
 class PExample(Pattern):
     """A Pattern with example"""
 
     def __init__(self, pattern: Pattern, examples):
         self.pattern: Pattern = pattern
-        self.examples: List[str] = [e for e in examples if e]
+        self.examples: List[Example] = [Example(e, pattern) for e in examples if e]
 
     @property
     def has_example(self) -> bool:
         return bool(self.examples)
 
     def __repr__(self):
-        return '(' + repr(self.pattern) + ') **with example**'
+        return '(' + repr(self.pattern) + ') **with {} examples**'.format(len(self.examples))
 
     def match(self, text, start=0):
         # should not reach this line

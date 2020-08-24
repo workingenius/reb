@@ -1,6 +1,8 @@
 import re
 
-from reb import P, PTNode
+import pytest
+
+from reb import P, PTNode, ExampleFail
 
 
 def test_text_match1():
@@ -304,3 +306,31 @@ class TestRebBehaviourSameAsRE(object):
         # following cases do not pass, as search order differs.
         # self.ensure_behaviour_same(ptn, 'x=1; y= 2;')
         # self.ensure_behaviour_same(ptn, 'x=1; y= 2; zzz==xxx;;')
+
+
+class TestExample(object):
+    def test_example1(self):
+        ptn0 = P.pattern('abc')
+        ptn = P.example(
+            ptn0,
+            'abc',
+            ' abc '
+        )
+
+        assert ptn.extract('abc') == ptn0.extract('abc')
+
+    def test_example2(self):
+        ptn0 = P.pattern('def')
+
+        with pytest.raises(ExampleFail):
+            P.example(
+                ptn0,
+                'alala'
+            )
+
+    def test_example_conflict1(self):
+        ptn1 = P.example(P.pattern('def'), 'def')
+        ptn2 = P.example(P.pattern('de'), 'de')
+
+        with pytest.raises(ExampleFail):
+            ptn2 | ptn1
