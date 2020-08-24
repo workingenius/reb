@@ -371,8 +371,9 @@ class PAdjacent(Pattern):
                     mtc_stk.append(self.patterns[idx_ptn].match(text, idx_pos))
                     res_stk.append(None)
                 else:
-                    yield PTNode.lead(res_stk)
+                    yield PTNode.lead(res_stk)  # type: ignore
                     idx_ptn -= 1
+                    assert res_stk[-1] is not None
                     idx_pos = res_stk[-1].index0
 
     def __add__(self, pattern) -> Pattern:
