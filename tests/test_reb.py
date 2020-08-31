@@ -121,6 +121,30 @@ def test_prepeat_match3():
     assert ptn.extract('aaaa') == [PTNode('aaaa', 0, 3), PTNode('aaaa', 3, 4)]
 
 
+def test_repeat_match4():
+    ptn = P.n('a') + P.n('b') + P.n('c')
+    # should not contain substring with zero length
+    assert not ptn.extract('def')
+
+
+def test_repeat_match5():
+    ptn = P.n('a', greedy=False) + P.n('b')
+    text = 'aabb'
+    assert ptn.extract(text) == [
+        PTNode(text, 2, 4, children=[
+            PTNode(text, 2, 2),
+            PTNode(text, 2, 4),
+        ]),
+    ]
+
+
+def test_repeat_match6():
+    ptn = P.n('a', 3, 3)
+    assert ptn.extract('') == []
+    assert ptn.extract('aaa') == [PTNode('aaa', 0, 3)]
+    assert ptn.extract('aaaaa') == [PTNode('aaaaa', 0, 3)]
+
+
 def test_dropped():
     """PTNodes make by helper patterns should not be in the parse tree"""
 
@@ -136,23 +160,6 @@ def test_dropped():
         PTNode(text2, start=2, end=3),
         PTNode(text2, start=3, end=4),
     ])
-
-
-def test_repeat_match3():
-    ptn = P.n('a') + P.n('b') + P.n('c')
-    # should not contain substring with zero length
-    assert not ptn.extract('def')
-
-
-def test_repeat_match4():
-    ptn = P.n('a', greedy=False) + P.n('b')
-    text = 'aabb'
-    assert ptn.extract(text) == [
-        PTNode(text, 2, 4, children=[
-            PTNode(text, 2, 2),
-            PTNode(text, 2, 4),
-        ]),
-    ]
 
 
 def test_match_recursion_max_limit():

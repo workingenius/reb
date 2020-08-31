@@ -324,11 +324,15 @@ class PRepeat(Pattern):
         self.sub = (PReversed(sub) if greedy else sub)
 
     def _prepare(self, pattern: Pattern, _from: int, _to: int = None) -> Pattern:
+        tail = None
         if _to is None:
             tail = PRepeat0n(self.pattern)
-        elif isinstance(_to, int):
+        elif isinstance(_to, int) and _from < _to:
             tail = PRepeat0n(self.pattern, _to - _from)
-        return PAdjacent([pattern] * _from + [tail])
+        sub = [pattern] * _from
+        if tail:
+            sub = sub + [tail]
+        return PAdjacent(sub)
 
     def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         for pt in self.sub.match(text, start):
