@@ -488,11 +488,21 @@ class P(object):
         return PTag(Pattern.make(pattern), tag=tag)
 
     @staticmethod
-    def repeat(pattern, _from: int = 0, _to: int = None, greedy=True) -> Pattern:
+    def repeat(pattern, _from: int = None, _to: int = None, greedy=True, exact: int = None) -> Pattern:
         """repeat a pattern some times
 
         if _to is None, repeat time upbound is not limited
         """
+        if exact is not None:
+            _from = exact
+            _to = exact
+
+        if _from is None:
+            _from = 0
+
+        if _to is not None and _to < _from:
+            raise InvalidPattern('Repeat upper bound less than lower bound')
+        
         return PRepeat(Pattern.make(pattern), _from=_from, _to=_to, greedy=greedy)
 
     n = repeat

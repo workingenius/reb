@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from reb import P, PTNode, ExampleFail
+from reb import P, PTNode, ExampleFail, InvalidPattern
 
 
 def test_text_match1():
@@ -143,6 +143,27 @@ def test_repeat_match6():
     assert ptn.extract('') == []
     assert ptn.extract('aaa') == [PTNode('aaa', 0, 3)]
     assert ptn.extract('aaaaa') == [PTNode('aaaaa', 0, 3)]
+
+
+def test_repeat_7():
+    p0 = P.n(P.ANYCHAR)
+    assert p0._from == 0
+    assert p0._to == None
+
+    p1 = P.n(P.ANYCHAR, 1)
+    assert p1._from == 1
+    assert p1._to == None
+
+    p2 = P.n(P.ANYCHAR, 1, 3)
+    assert p2._from == 1
+    assert p2._to == 3
+
+    p3 = P.n(P.ANYCHAR, exact=4)
+    assert p3._from == 4
+    assert p3._to == 4
+
+    with pytest.raises(InvalidPattern):
+        P.n(P.ANYCHAR, 6, 1)
 
 
 def test_dropped():
