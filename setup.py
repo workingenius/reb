@@ -11,4 +11,7 @@ setup(
     extras_require={
         'dev': ['pytest', 'mypy'],
     },
+    entry_points={
+        'console_scripts': ['reb=reb.cli:main']
+    },
 )
