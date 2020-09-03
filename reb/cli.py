@@ -27,7 +27,7 @@ def main():
     
     with open(input_file_path, 'r') as fo:
         text = fo.read()
-        extraction = pattern.extract(text)
+        extraction = pattern.extractiter(text)
         
         for segment in extraction:
             segment.pp()

@@ -163,11 +163,15 @@ class Pattern(object):
 
     def extract(self, text: str) -> List[PTNode]:
         """Extract info from text by the pattern, and return every match, forming a parse tree"""
-        nl: List[PTNode] = []
+        return list(self.extractiter(text))
+
+    extractall = extract
+
+    def extractiter(self, text: str) -> Iterator[PTNode]:
+        """Extract info from text by the pattern, and return every match, forming parse trees"""
         for n in self.finditer(text):
             if n:
-                nl.append(n)
-        return nl
+                yield n
 
     def finditer(self, text: str) -> Iterator[PTNode]:
         """Find pattern in text, yield them one after another"""
