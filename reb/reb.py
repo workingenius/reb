@@ -1,3 +1,4 @@
+from itertools import permutations
 from typing import List, Optional, Iterator
 
 
@@ -539,6 +540,27 @@ class P(object):
                 exs.extend(arg)
 
         return PExample(pat, exs)
+
+    @staticmethod
+    def onceeach(*patterns, seperator=None):
+        """For given patterns, appear once for each (without caring order)"""
+        ptn_lst = [Pattern.make(p) for p in patterns]
+        ptn_sep = Pattern.make(seperator)
+
+        alt_lst: List[Pattern] = []
+        for sub_ptn_lst in permutations(ptn_lst):
+            if sub_ptn_lst and ptn_sep:
+                _sub_ptn_lst = [None] * (len(sub_ptn_lst) * 2 - 1)
+                for i in range(len(_sub_ptn_lst)):
+                    if i % 2 == 0:
+                        _sub_ptn_lst[i] = sub_ptn_lst[i // 2]
+                    else:
+                        _sub_ptn_lst[i] = ptn_sep
+                sub_ptn_lst = _sub_ptn_lst
+            alt_lst.append(
+                PAdjacent(sub_ptn_lst)
+            )
+        return PAny(alt_lst)
 
     ANYCHAR: Pattern
     STARTING: Pattern
