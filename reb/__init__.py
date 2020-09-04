@@ -1,2 +1,2 @@
-from .reb import P, PTNode, Pattern
-from .reb import RebException, ExampleFail, InvalidPattern
+from .pattern import P, PTNode, Pattern
+from .pattern import RebException, ExampleFail, InvalidPattern

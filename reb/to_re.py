@@ -4,7 +4,7 @@
 from functools import singledispatch
 from re import escape as re_escape
 
-from .reb import Pattern, PText, PAnyChar, PNotInChars, PInChars, PAny, PTag, PRepeat, PAdjacent
+from .pattern import Pattern, PText, PAnyChar, PNotInChars, PInChars, PAny, PTag, PRepeat, PAdjacent
 
 
 @singledispatch

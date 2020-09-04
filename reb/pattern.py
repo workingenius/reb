@@ -86,6 +86,7 @@ class Pattern(object):
 
     @property
     def re(self):
+        # circular dependency
         from .to_re import to_re
         return to_re(self)
 
