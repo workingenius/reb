@@ -22,7 +22,7 @@ class PTNode(object):
         assert end >= start >= 0
         self.index0: int = start
         self.index1: int = end
-        self.children: List['PTNode'] = children
+        self._children: List['PTNode'] = children
         self.tag = tag
 
     @property
@@ -39,13 +39,17 @@ class PTNode(object):
     def end(self):
         return self.index1
 
+    @property
+    def children(self):
+        return node_children(self)
+
     def __repr__(self):
         c = '{}, {}, content={}'.format(self.index0, self.index1, repr(self.content))
         if self.tag:
             c += ', tag={}'.format(repr(self.tag))
         elif self.children:
             c += ', children=[{}]'.format(', '.join([repr(n) for n in self.children]))
-        return 'PTNode(' + c + ')'
+        return '{}('.format(self.__class__.__name__) + c + ')'
 
     def __bool__(self):
         return self.index1 > self.index0
@@ -57,7 +61,7 @@ class PTNode(object):
         for p1, p2 in zip(pts[:-1], pts[1:]):
             assert p1.index1 == p2.index0
             
-        pt = PTNode(pts[0].text, pts[0].index0, pts[-1].index1, children=pts)
+        pt = cls(pts[0].text, pts[0].index0, pts[-1].index1, children=list(pts))
         return pt
 
     def fetch(self, tag):
@@ -133,6 +137,38 @@ class PTNode(object):
             ws += colored(right_str, attrs=['dark'])
 
             print(ws)
+
+    def show(self):
+        return show_tree(self)
+
+
+class VirtualPTNode(PTNode):
+    """A class of nodes that is transparent to callers"""
+
+
+def node_children(n: PTNode):
+    return list(iter_node_children(n))
+
+
+def iter_node_children(n: PTNode):
+    for c in n._children:
+        if not isinstance(c, VirtualPTNode):
+            if c:
+                yield c
+        for cc in iter_node_children(c):
+            yield cc
+
+
+def show_tree(tree: PTNode):
+    
+    def _show_tree(node: PTNode, depth=0) -> str:
+        assert isinstance(node, PTNode)
+        mark = '-' if isinstance(node, VirtualPTNode) else '+'
+        text = '{}{} ({}, {})'.format('  ' * depth, mark, node.start(), node.end())
+        subs = [_show_tree(sub, depth+1) for sub in node._children]
+        return '\n'.join([text] + subs)
+
+    print(_show_tree(tree))
 
 
 class Pattern(object):
@@ -341,7 +377,7 @@ class PRepeat(Pattern):
 
     def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         for pt in self.sub.match(text, start):
-            yield pt.drop()
+            yield pt
 
     def __repr__(self):
         to = self._to if isinstance(self._to, int) else ''
@@ -408,7 +444,7 @@ class PRepeat0n(Pattern):
             return
         # Node List NeXT
         nl_nxt = [PTNode(text, start, start)]
-        yield PTNode.lead(nl_nxt)  # x* pattern can always match empty string
+        yield VirtualPTNode.lead(nl_nxt)  # x* pattern can always match empty string
         nl_que = [nl_nxt]
         while nl_que:
             # Node List PREvious, which has already failed
@@ -420,7 +456,7 @@ class PRepeat0n(Pattern):
                     # repeat expect it's sub pattern to proceed
                     continue
                 nl_nxt = nl_pre + [n2]
-                yield PTNode.lead(nl_nxt)
+                yield VirtualPTNode.lead(nl_nxt)
                 nl_que.append(nl_nxt)
 
 

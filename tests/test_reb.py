@@ -3,6 +3,41 @@ import re
 import pytest
 
 from reb import P, PTNode, ExampleFail, InvalidPattern
+from reb.reb import VirtualPTNode
+
+
+def test_parse_tree():
+    text = 'abcdef'
+
+    node = PTNode(text, 0, 3, children=[
+        VirtualPTNode(text, 0, 2, children=[
+            PTNode(text, 0, 1),
+            PTNode(text, 1, 2),
+        ]),
+    ])
+
+    assert node.children == [
+        PTNode(text, 0, 1),
+        PTNode(text, 1, 2)
+    ]
+
+
+def test_parse_tree2():
+    """Empty nodes are hidden"""
+    text = 'abcdef'
+
+    node = PTNode(text, 0, 3, children=[
+        VirtualPTNode(text, 0, 2, children=[
+            PTNode(text, 0, 1),
+            PTNode(text, 1, 1),
+            PTNode(text, 1, 2),
+        ]),
+    ])
+
+    assert node.children == [
+        PTNode(text, 0, 1),
+        PTNode(text, 1, 2)
+    ]
 
 
 def test_text_match1():
@@ -115,10 +150,34 @@ def test_repeat_match2():
 def test_prepeat_match3():
     ptn = P.n('a', 1, 3)
     assert ptn.extract('') == []
-    assert ptn.extract('a') == [PTNode('a', 0, 1)]
-    assert ptn.extract('aa') == [PTNode('aa', 0, 2)]
-    assert ptn.extract('aaa') == [PTNode('aaa', 0, 3)]
-    assert ptn.extract('aaaa') == [PTNode('aaaa', 0, 3), PTNode('aaaa', 3, 4)]
+    assert ptn.extract('a') == [
+        PTNode('a', 0, 1, children=[
+            PTNode('a', 0, 1)
+        ])
+    ]
+    assert ptn.extract('aa') == [
+        PTNode('aa', 0, 2, children=[
+            PTNode('aa', 0, 1),
+            PTNode('aa', 1, 2)
+        ])
+    ]
+    assert ptn.extract('aaa') == [
+        PTNode('aaa', 0, 3, children=[
+            PTNode('aaa', 0, 1),
+            PTNode('aaa', 1, 2),
+            PTNode('aaa', 2, 3)
+        ])
+    ]
+    assert ptn.extract('aaaa') == [
+        PTNode('aaaa', 0, 3, children=[
+            PTNode('aaaa', 0, 1),
+            PTNode('aaaa', 1, 2),
+            PTNode('aaaa', 2, 3)
+        ]),
+        PTNode('aaaa', 3, 4, children=[
+            PTNode('aaaa', 3, 4)
+        ])
+    ]
 
 
 def test_repeat_match4():
@@ -132,8 +191,10 @@ def test_repeat_match5():
     text = 'aabb'
     assert ptn.extract(text) == [
         PTNode(text, 2, 4, children=[
-            PTNode(text, 2, 2),
-            PTNode(text, 2, 4),
+            PTNode(text, 2, 4, children=[
+                PTNode(text, 2, 3),
+                PTNode(text, 3, 4),
+            ]),
         ]),
     ]
 
@@ -141,8 +202,20 @@ def test_repeat_match5():
 def test_repeat_match6():
     ptn = P.n('a', 3, 3)
     assert ptn.extract('') == []
-    assert ptn.extract('aaa') == [PTNode('aaa', 0, 3)]
-    assert ptn.extract('aaaaa') == [PTNode('aaaaa', 0, 3)]
+
+    text = 'aaa'
+    assert ptn.extract(text) == [PTNode(text, 0, 3, children=[
+        PTNode(text, 0, 1),
+        PTNode(text, 1, 2),
+        PTNode(text, 2, 3),
+    ])]
+
+    text = 'aaaaa'
+    assert ptn.extract(text) == [PTNode(text, 0, 3, children=[
+        PTNode(text, 0, 1),
+        PTNode(text, 1, 2),
+        PTNode(text, 2, 3),
+    ])]
 
 
 def test_repeat_7():
@@ -170,17 +243,27 @@ def test_dropped():
     """PTNodes make by helper patterns should not be in the parse tree"""
 
     ptn = P.n('aba')
-    assert ptn.extract('abababa')[0] == PTNode('abababa', start=0, end=3, children=[])
-    assert ptn.extract('abababa')[1] == PTNode('abababa', start=4, end=7, children=[])
+
+    text = 'abababa'
+    assert ptn.extract(text) == [
+        PTNode(text, 0, 3, children=[
+            PTNode(text, 0, 3)
+        ]),
+        PTNode(text, 4, 7, children=[
+            PTNode(text, 4, 7)
+        ])
+    ]
 
     text2 = 'a1x2'
     ptn2 = P.ic('abc') + P.ic('123') + P.ic('xyz') + P.ic('123')
-    assert ptn2.extract(text2)[0] == PTNode(text2, start=0, end=4, children=[
-        PTNode(text2, start=0, end=1),
-        PTNode(text2, start=1, end=2),
-        PTNode(text2, start=2, end=3),
-        PTNode(text2, start=3, end=4),
-    ])
+    assert ptn2.extract(text2) == [
+        PTNode(text2, 0, 4, children=[
+            PTNode(text2, 0, 1),
+            PTNode(text2, 1, 2),
+            PTNode(text2, 2, 3),
+            PTNode(text2, 3, 4),
+        ])
+    ]
 
 
 def test_match_recursion_max_limit():
@@ -194,10 +277,24 @@ def test_repeat_zero_spans():
     ptn = P.n(P.n('a'))
 
     assert ptn.extract('') == []
-    assert ptn.extract('a') == [PTNode('a', 0, 1)]
+    assert ptn.extract('a') == [PTNode('a', 0, 1, children=[
+        PTNode('a', 0, 1, children=[PTNode('a', 0, 1)])])]
     assert ptn.extract('b') == []
-    assert ptn.extract('bba') == [PTNode('bba', 2, 3)]
-    assert ptn.extract('bbaaa') == [PTNode('bbaaa', 2, 5)]
+    assert ptn.extract('bba') == [PTNode('bba', 2, 3, children=[
+        PTNode('bba', 2, 3, children=[PTNode('bba', 2, 3)])])]
+    assert ptn.extract('bbaaa') == [
+        PTNode('bbaaa', 2, 5, children=[
+            PTNode('bbaaa', 2, 3, children=[
+                PTNode('bbaaa', 2, 3)
+            ]),
+            PTNode('bbaaa', 3, 4, children=[
+                PTNode('bbaaa', 3, 4)
+            ]),
+            PTNode('bbaaa', 4, 5, children=[
+                PTNode('bbaaa', 4, 5)
+            ]),
+        ])
+    ]
 
 
 def test_pstarting1():
