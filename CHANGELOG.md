@@ -1,6 +1,18 @@
 reb's CHANGELOG
 ================
 
+0.0.3
+-----
+*(September 4th, 2020)*
+
++ Add command line entry `reb`
++ New syntax P.n(, exact=x)
++ New pattern primitive P.onceeach
++ Lazy-extraction is possible by Pattern.extractiter
++ Fix bugs:
+  - pattern match error when P.n _to == _from
+  - tags under P.n are all dropped
+
 0.0.2
 -----
 *(August 24, 2020)*
