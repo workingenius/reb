@@ -25,6 +25,7 @@ class PTNode(object):
     def content(self) -> str:
         return self.text[self.index0: self.index1]
 
+    # start(), end() as methods, simulating re MathcObject behaviour
     def start(self):
         return self.index0
 
@@ -79,59 +80,12 @@ class PTNode(object):
         return False
 
     def pp(self):
-        try:
-            from termcolor import colored
-        except ImportError:
-            print('Module termcolor is needed')
-
-        else:
-            # for i in tag_lst, tag_lst[i] is the tag most close to the leaf
-            tag_lst = [None] * (self.index1 - self.index0)
-
-            start0 = self.index0
-
-            def set_tag(node, tl):
-                """Traverse the parse tree and set tag_lst"""
-                if node.tag is not None:
-                    for i in range(node.index0 - start0, node.index1 - start0):
-                        tl[i] = node.tag
-                for cn in node.children:
-                    set_tag(cn, tl)
-
-            set_tag(self, tag_lst)
-
-            colors = ['red', 'green', 'yellow', 'blue', 'magenta']
-            white = 'white'
-
-            def tag_color(tag):
-                if tag is None:
-                    return white
-                return colors[sum(map(ord, tag)) % len(colors)]
-
-            color_lst = [tag_color(tag) for tag in tag_lst]
-
-            # extend several chars on both sides
-            extend_n = 10
-            left_i = max(0, self.index0 - extend_n)
-            right_i = min(len(self.text), self.index1 + extend_n)
-
-            left_str = self.text[left_i: self.index0]
-            left_str = ('...' + left_str) if left_i > 0 else left_str
-
-            right_str = self.text[self.index1: right_i]
-            right_str = (right_str + '...') if right_i < len(self.text) else right_str
-
-            # whole string to print
-            ws = colored(left_str, attrs=['dark'])
-            for offset, color in enumerate(color_lst):
-                i = self.index0 + offset
-                ws += colored(self.text[i], color)
-            ws += colored(right_str, attrs=['dark'])
-
-            print(ws)
+        """Pretty Print in terminals, designed for terminal users"""
+        pretty_print_tree(self)
 
     def show(self):
-        return show_tree(self)
+        """Show tree structure in detail, designed for pdb debugging"""
+        show_tree(self)
 
 
 class VirtualPTNode(PTNode):
@@ -161,3 +115,56 @@ def show_tree(tree: PTNode):
         return '\n'.join([text] + subs)
 
     print(_show_tree(tree))
+
+
+def pretty_print_tree(tree: PTNode):
+    try:
+        from termcolor import colored
+    except ImportError:
+        print('Module termcolor is needed')
+
+    else:
+        # for i in tag_lst, tag_lst[i] is the tag most close to the leaf
+        tag_lst = [None] * (tree.index1 - tree.index0)
+
+        start0 = tree.index0
+
+        def set_tag(node, tl):
+            """Traverse the parse tree and set tag_lst"""
+            if node.tag is not None:
+                for i in range(node.index0 - start0, node.index1 - start0):
+                    tl[i] = node.tag
+            for cn in node.children:
+                set_tag(cn, tl)
+
+        set_tag(tree, tag_lst)
+
+        colors = ['red', 'green', 'yellow', 'blue', 'magenta']
+        white = 'white'
+
+        def tag_color(tag):
+            if tag is None:
+                return white
+            return colors[sum(map(ord, tag)) % len(colors)]
+
+        color_lst = [tag_color(tag) for tag in tag_lst]
+
+        # extend several chars on both sides
+        extend_n = 10
+        left_i = max(0, tree.index0 - extend_n)
+        right_i = min(len(tree.text), tree.index1 + extend_n)
+
+        left_str = tree.text[left_i: tree.index0]
+        left_str = ('...' + left_str) if left_i > 0 else left_str
+
+        right_str = tree.text[tree.index1: right_i]
+        right_str = (right_str + '...') if right_i < len(tree.text) else right_str
+
+        # whole string to print
+        ws = colored(left_str, attrs=['dark'])
+        for offset, color in enumerate(color_lst):
+            i = tree.index0 + offset
+            ws += colored(tree.text[i], color)
+        ws += colored(right_str, attrs=['dark'])
+
+        print(ws)
