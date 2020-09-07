@@ -5,11 +5,12 @@ from functools import singledispatch
 from re import escape as re_escape
 
 from .pattern import Pattern, PText, PAnyChar, PNotInChars, PInChars, PAny, PTag, PRepeat, PAdjacent
+from .cache import PCached
 
 
 @singledispatch
 def to_re(pattern: Pattern) -> str:
-    raise TypeError('The pattern can\'t rewrite in traditional re')
+    raise TypeError('The pattern can\'t rewrite in traditional re: {}'.format(pattern.__class__))
 
 
 @to_re.register(PText)
@@ -64,6 +65,11 @@ def prepeat_to_re(pattern: PRepeat) -> str:
 def padjacent_to_re(pattern: PAdjacent) -> str:
     subs = [protect(to_re(p)) for p in pattern.patterns]
     return ''.join(subs)
+
+
+@to_re.register(PCached)
+def pcached_to_re(pattern: PCached) -> str:
+    return to_re(pattern.pattern)
 
 
 def protect(restr: str) -> str:

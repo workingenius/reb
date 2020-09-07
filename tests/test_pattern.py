@@ -2,7 +2,8 @@ import re
 
 import pytest
 
-from reb.pattern import P, PTNode, ExampleFail, InvalidPattern
+from reb.p import P
+from reb.pattern import PTNode, ExampleFail, InvalidPattern
 
 
 def test_text_match1():
