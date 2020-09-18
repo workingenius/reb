@@ -1,7 +1,7 @@
 """Implement Regular Expression with vm"""
 
 
-from typing import Iterator, List, Optional, Union
+from typing import Iterator, List, Optional, Union, Dict, Callable, Sequence
 from functools import singledispatch
 
 from .parse_tree import PTNode
@@ -32,7 +32,7 @@ class Program(object):
 
         self.inst_count: int = len(self.inst_lst)
         
-        self._offset = None
+        self._offset: Optional[int] = None
 
     @property
     def offset(self) -> int:
@@ -46,7 +46,7 @@ class Program(object):
 
     def dump(self, is_root: bool = True, offset: int = 0) -> List[Instruction]:
         """Dump to a list of instructions for execution"""
-        inst_lst = []
+        inst_lst: List[Instruction] = []
         if is_root:
             inst_lst.append(InsStart())
             inst_lst.append(InsGroupStart(group_id=None))
@@ -56,7 +56,8 @@ class Program(object):
                 inst_lst.append(s)
             elif isinstance(s, Program):
                 s.offset = offset + len(inst_lst)
-                inst_lst.extend(s.inst_lst)
+                ilst = s.dump(is_root=False, offset=s.offset)
+                inst_lst.extend(ilst)
 
         for inst in inst_lst:
             inst.ready()
@@ -76,7 +77,7 @@ class InsPointer(Instruction):
     def __init__(self, program: Program, to_ending: bool = False):
         self.program = program
         self.to_ending: bool = to_ending
-        self.to: int = None
+        self.to: int = -1
 
     def ready(self):
         assert self.program.offset >= 0
@@ -84,6 +85,7 @@ class InsPointer(Instruction):
             self.to = self.program.offset + self.program.inst_count
         else:
             self.to = self.program.offset
+        assert self.to >= 0
         # release program objects
         self.program = None
 
@@ -130,7 +132,7 @@ class InsGroupEnd(Instruction):
 class InsPredicate(Instruction):
     """Step on only if <pred> get True, else fail current thread"""
     def __init__(self, pred):
-        self.pred: callable = pred
+        self.pred: Callable[[str, int], bool] = pred
 
 
 class InsAny(Instruction):
@@ -160,12 +162,12 @@ class Thread(object):
         self.marks: List[Mark] = list(marks) or []  # group start end end marks
 
         # Priority double ended link list
-        self.prio_former: 'Thread' = None
-        self.prio_later: 'Thread' = None
+        self.prio_former: Optional['Thread'] = None
+        self.prio_later: Optional['Thread'] = None
 
     def to_ptnode(self, text: str) -> Optional[PTNode]:
         if not self.marks:
-            return
+            return None
 
         mark_stk: List[Mark] = []
         node_stk: List[PTNode] = []
@@ -181,7 +183,7 @@ class Thread(object):
                 start = m0.index
                 end = m.index
                 chl = []
-                while node_stk and node_stk[-1].index >= start:
+                while node_stk and node_stk[-1].index0 >= start:
                     chl.append(node_stk.pop())
                 node_stk.append(PTNode(text, start=start, end=end, children=chl, tag=m.name))
 
@@ -198,7 +200,7 @@ class Finder(object):
         program = self.program
 
         # mapping threads pc to threads
-        thread_map = {}
+        thread_map: Dict[int, Optional[Thread]] = {}
 
         # current thread linked list
         cur_hi = Thread(pc=-1, sp=-1, starter=-1)  # helper node with highest priority
@@ -256,7 +258,7 @@ class Finder(object):
                     replace = expel
 
                 if not replace:
-                    return
+                    return None
                 else:
                     del_thread(thread0)
             
@@ -269,9 +271,9 @@ class Finder(object):
             # for every new char, create a new thread
             # it should be the lowest priority in current linked list
             th = Thread(pc=0, sp=index, starter=index)
-            th = put_thread(th, pc=th.pc, expel=False)
-            if th:
-                move_thread_higher(th, than=cur_lo)
+            th1 = put_thread(th, pc=th.pc, expel=False)
+            if th1:
+                move_thread_higher(th1, than=cur_lo)
 
             # as long as the ready ll is not empty
             while cur_hi.prio_later is not cur_lo:
@@ -282,7 +284,9 @@ class Finder(object):
                     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsSuccess):
                     # find a match, arrange it to be PTNodes, and re-init threads
-                    yield th.to_ptnode()
+                    node = th.to_ptnode(text)
+                    assert node is not None
+                    yield node
                     thread_map = {}
                     cur_hi.prio_later = cur_lo
                     nxt_hi.prio_later = nxt_lo
@@ -298,23 +302,23 @@ class Finder(object):
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_higher(th1, than=th)
-                    put_thread(th, pc=th.pc + 1)
+                    put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsForkLower):
                     th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_lower(th1, than=th)
-                    put_thread(th, pc=th.pc + 1)
+                    put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsJump):
-                    put_thread(ins, pc=ins.to, expel=True)
+                    put_thread(th, pc=ins.to, expel=True)
                 elif isinstance(ins, InsGroupStart):
-                    th.marks.append(Mark(index=ins.index, name=ins.group_id, is_open=True, depth=0))  # TODO depth
-                    put_thread(ins, pc=th.pc + 1, expel=True)
+                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=True, depth=0))  # TODO depth
+                    put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsGroupEnd):
-                    th.marks.append(Mark(index=ins.index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
-                    put_thread(ins, pc=th.pc + 1, expel=True)
+                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
+                    put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsPredicate):
-                    if ins.pred(char, index=index):
+                    if ins.pred(char, index):
                         put_thread(th, pc=th.pc + 1, expel=True)
                         move_thread_higher(th, than=nxt_lo)
                     else:
@@ -327,7 +331,7 @@ class Finder(object):
 
 
 def compile_pattern(pattern: Pattern) -> Finder:
-    return Finder(_pattern_to_program(pattern))
+    return Finder(_pattern_to_program(pattern).dump())
 
 
 @singledispatch
@@ -342,7 +346,7 @@ def _ptext_to_program(pattern: PText) -> Program:
 
 
 @_pattern_to_program.register(PAnyChar)
-def _pany_to_program(pattern: PAny) -> Program:
+def _panychar_to_program(pattern: PAny) -> Program:
     return Program([InsAny()])
 
 
