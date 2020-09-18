@@ -1,14 +1,89 @@
 """Implement Regular Expression with vm"""
 
 
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Union
+from functools import singledispatch
 
 from .parse_tree import PTNode
-from .pattern import Pattern
+from .pattern import (
+    Pattern, PText, PAnyChar, PTag, PInChars, PAny,
+    PClause, PRepeat, PAdjacent)
 
 
 class Instruction(object):
     """Instruction of the VM"""
+
+    def ready(self):
+        """Mark instruction as ready and should not be modified any more"""
+
+
+class Program(object):
+    """A Tree style instruction series"""
+
+    def __init__(self, sub: List['SubProgram']):
+        self.sub: List['SubProgram'] = sub
+
+        self.inst_lst: List[Instruction] = []
+        for s in self.sub:
+            if isinstance(s, Instruction):
+                self.inst_lst.append(s)
+            elif isinstance(s, Program):
+                self.inst_lst.extend(s.inst_lst)
+
+        self.inst_count: int = len(self.inst_lst)
+        
+        self._offset = None
+
+    @property
+    def offset(self) -> int:
+        return self._offset or -1
+
+    @offset.setter
+    def offset(self, val: int):
+        assert self._offset is None, 'Once program has an offset, it can\'t be modified'
+        assert val >= 0, 'An program offset should be gle zero'
+        self._offset = val
+
+    def dump(self, is_root: bool = True, offset: int = 0) -> List[Instruction]:
+        """Dump to a list of instructions for execution"""
+        inst_lst = []
+        if is_root:
+            inst_lst.append(InsStart())
+
+        for s in self.sub:
+            if isinstance(s, Instruction):
+                inst_lst.append(s)
+            elif isinstance(s, Program):
+                s.offset = offset + len(inst_lst)
+                inst_lst.extend(s.inst_lst)
+
+        for inst in inst_lst:
+            inst.ready()
+
+        if is_root:
+            inst_lst.append(InsSuccess())
+        return inst_lst
+
+
+SubProgram = Union[Instruction, Program]
+
+
+class InsPointer(Instruction):
+    """An kind of instruction that has link to a program"""
+
+    def __init__(self, program: Program, to_ending: bool = False):
+        self.program = program
+        self.to_ending: bool = to_ending
+        self.to: int = None
+
+    def ready(self):
+        assert self.program.offset >= 0
+        if self.to_ending:
+            self.to = self.program.offset + self.program.inst_count
+        else:
+            self.to = self.program.offset
+        # release program objects
+        self.program = None
 
 
 class InsStart(Instruction):
@@ -22,38 +97,31 @@ class InsSuccess(Instruction):
 class InsCompare(Instruction):
     """Step to next instruction only if current character equals <char>, otherwise current thread fails"""
     def __init__(self, char: str):
-        self.char: char = char
+        assert len(char) <= 1
+        self.char: str = char
 
 
-class InsForkHigher(Instruction):
+class InsForkHigher(InsPointer):
     """Step on, create a new thread with higher priority, and put it to instruction at <to>"""
-    def __init__(self, to: int):
-        self.to: int = to
 
 
-class InsForkLower(Instruction):
+class InsForkLower(InsPointer):
     """Step on, create a new thread with lower priority, and put it to instruction at <to>"""
-    def __init__(self, to: int):
-        self.to: int = to
 
 
-class InsJump(Instruction):
+class InsJump(InsPointer):
     """Goto instruction at <to>"""
-    def __init__(self, to: int):
-        self.to: int = to
 
 
 class InsGroupStart(Instruction):
-    """Mark a group with <group_id> as start at string <index>"""
-    def __init__(self, index: int, group_id):
-        self.index: int = index
+    """Mark a group with <group_id> as start"""
+    def __init__(self, group_id):
         self.group_id = group_id
 
 
 class InsGroupEnd(Instruction):
-    """Mark a group with <group_id> as end at string <index>"""
-    def __init__(self, index: int, group_id):
-        self.index: int = index
+    """Mark a group with <group_id> as ending"""
+    def __init__(self, group_id):
         self.group_id = group_id
 
 
@@ -61,6 +129,10 @@ class InsPredicate(Instruction):
     """Step on only if <pred> get True, else fail current thread"""
     def __init__(self, pred):
         self.pred: callable = pred
+
+
+class InsAny(Instruction):
+    """Step on unconditionally"""
 
 
 class Thread(object):
@@ -89,8 +161,11 @@ class Mark(object):
 
 
 class Finder(object):
-    def finditer(self, program: List[Instruction], text: str) -> Iterator[PTNode]:
-        # TODO execute instructions on text and generate PTNodes
+    def __init__(self, program: List[Instruction]):
+        self.program: List[Instruction] = program
+
+    def finditer(self, text: str) -> Iterator[PTNode]:
+        program = self.program
 
         # mapping threads pc to threads
         thread_map = {}
@@ -214,10 +289,105 @@ class Finder(object):
                         move_thread_higher(th, than=nxt_lo)
                     else:
                         del_thread(th)
+                elif isinstance(ins, InsAny):
+                    put_thread(th, pc=th.pc + 1, expel=True)
+                    move_thread_higher(th, than=nxt_lo)
 
             cur_hi, cur_lo, nxt_hi, nxt_lo = nxt_hi, nxt_lo, cur_hi, cur_lo
 
 
 def compile_pattern(pattern: Pattern) -> Finder:
-    # TODO Turn a pattern into a series of instructions
-    pass
+    return Finder(_pattern_to_program(pattern))
+
+
+@singledispatch
+def _pattern_to_program(pattern: Pattern) -> Program:
+    raise TypeError('Pattern {} can\'t compiled to vm instructions')
+
+
+@_pattern_to_program.regster(PText)
+def _ptext_to_program(pattern: PText) -> Program:
+    assert len(pattern.text) > 0
+    return Program([InsCompare(c) for c in pattern.text])
+
+
+@_pattern_to_program.register(PAnyChar)
+def _pany_to_program(pattern: PAny) -> Program:
+    return Program([InsAny()])
+
+
+@_pattern_to_program.register(PTag)
+def _ptag_to_program(pattern: PTag) -> Program:
+    return Program([
+        InsGroupStart(group_id=pattern.tag),
+        _pattern_to_program(pattern.pattern),
+        InsGroupEnd(group_id=pattern.tag),
+    ])
+
+
+@_pattern_to_program.register(PInChars)
+def _pinchars_to_program(pattern: PInChars) -> Program:
+    return Program([InsPredicate((lambda c: c in pattern.chars))])
+
+
+@_pattern_to_program.register(PAny)
+def _pany_to_program(pattern: PAny) -> Program:
+    assert len(pattern.patterns) > 0
+    if len(pattern.patterns) == 1:
+        return _pattern_to_program(pattern.patterns[0])
+    else:
+        prog0 = _pattern_to_program(pattern.patterns[0])
+        prog1 = _pattern_to_program(PAny(pattern.patterns[1:]))
+
+        return Program([
+            InsForkLower(program=prog1),
+            prog0,
+            InsJump(program=prog1, to_ending=True),
+            prog1,
+        ])
+
+
+@_pattern_to_program.register(PRepeat)
+def _prepeat_to_program(pattern: PRepeat) -> Program:
+    prog0 = _pattern_to_program(pattern.pattern)
+
+    # ?
+    if (None, 1) == (pattern._from, pattern._to):
+        if pattern.greedy:
+            prog = Program([
+                InsForkLower(program=prog0, to_ending=True),
+                prog0
+            ])
+        else:
+            prog = Program([
+                InsForkHigher(program=prog0, to_ending=True),
+                prog0
+            ])
+
+    # +
+    elif (1, None) == (pattern._from, pattern._to):
+        if pattern.greedy:
+            prog = Program([
+                prog0,
+                InsForkHigher(program=prog0)
+            ])
+        else:
+            prog = Program([
+                prog0,
+                InsForkLower(program=prog0)
+            ])
+    
+    # *
+    elif (0, None) == (pattern._from, pattern._to):
+        prog = Program([
+            # fork over
+            prog0,
+            # jump back
+        ])
+        prog.sub = [InsForkLower(program=prog, to_ending=True)] + prog.sub
+        prog.sub = prog.sub + [InsJump(program=prog)]
+
+    else:
+        raise NotImplementedError('repeat exact times are not supported yet')
+
+    return prog
