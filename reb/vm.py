@@ -6,7 +6,7 @@ from functools import singledispatch
 
 from .parse_tree import PTNode
 from .pattern import (
-    Pattern, PText, PAnyChar, PTag, PInChars, PAny,
+    Pattern, PText, PAnyChar, PTag, PInChars, PNotInChars, PAny,
     PClause, PRepeat, PAdjacent)
 
 
@@ -36,7 +36,7 @@ class Program(object):
 
     @property
     def offset(self) -> int:
-        return self._offset or -1
+        return self._offset if self._offset is not None else -1
 
     @offset.setter
     def offset(self, val: int):
@@ -48,6 +48,7 @@ class Program(object):
         """Dump to a list of instructions for execution"""
         inst_lst: List[Instruction] = []
         if is_root:
+            self.offset = 0
             inst_lst.append(InsStart())
             inst_lst.append(InsGroupStart(group_id=None))
 
@@ -59,12 +60,12 @@ class Program(object):
                 ilst = s.dump(is_root=False, offset=s.offset)
                 inst_lst.extend(ilst)
 
-        for inst in inst_lst:
-            inst.ready()
-
         if is_root:
             inst_lst.append(InsGroupEnd(group_id=None))
             inst_lst.append(InsSuccess())
+
+            for inst in inst_lst:
+                inst.ready()
         return inst_lst
 
 
@@ -80,14 +81,15 @@ class InsPointer(Instruction):
         self.to: int = -1
 
     def ready(self):
-        assert self.program.offset >= 0
+        try:
+            assert self.program.offset >= 0
+        except AssertionError:
+            import pdb; pdb.set_trace()
         if self.to_ending:
             self.to = self.program.offset + self.program.inst_count
         else:
             self.to = self.program.offset
         assert self.to >= 0
-        # release program objects
-        self.program = None
 
 
 class InsStart(Instruction):
@@ -159,7 +161,7 @@ class Thread(object):
         self.pc: int = pc  # Program Counter
         self.sp: int = sp  # String pointer
         self.starter: int = starter  # where does the match started in the current string
-        self.marks: List[Mark] = list(marks) or []  # group start end end marks
+        self.marks: List[Mark] = list(marks) if marks else []  # group start end end marks
 
         # Priority double ended link list
         self.prio_former: Optional['Thread'] = None
@@ -244,7 +246,7 @@ class Finder(object):
             thread_map[thread.pc] = None
 
         def put_thread(thread: Thread, pc: int, expel: bool) -> Optional[Thread]:
-            if thread_map[thread.pc] is thread:
+            if thread_map.get(thread.pc) is thread:
                 thread_map.pop(thread.pc)
 
             to = pc
@@ -336,7 +338,7 @@ def compile_pattern(pattern: Pattern) -> Finder:
 
 @singledispatch
 def _pattern_to_program(pattern: Pattern) -> Program:
-    raise TypeError('Pattern {} can\'t compiled to vm instructions')
+    raise TypeError('Pattern {} can\'t compiled to vm instructions'.format(pattern.__class__))
 
 
 @_pattern_to_program.register(PText)
@@ -361,7 +363,12 @@ def _ptag_to_program(pattern: PTag) -> Program:
 
 @_pattern_to_program.register(PInChars)
 def _pinchars_to_program(pattern: PInChars) -> Program:
-    return Program([InsPredicate((lambda c: c in pattern.chars))])
+    return Program([InsPredicate((lambda c, i: c in pattern.chars))])
+
+
+@_pattern_to_program.register(PNotInChars)
+def _pnotinchars_to_program(pattern: PNotInChars) -> Program:
+    return Program([InsPredicate((lambda c, i: c not in pattern.chars))])
 
 
 @_pattern_to_program.register(PAny)
@@ -413,6 +420,7 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
     
     # *
     elif (0, None) == (pattern._from, pattern._to):
+        import pdb; pdb.set_trace()
         prog = Program([
             # fork over
             prog0,
@@ -425,3 +433,8 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
         raise NotImplementedError('repeat exact times are not supported yet')
 
     return prog
+
+
+@_pattern_to_program.register(PAdjacent)
+def _padjacent_to_program(pattern: PAdjacent) -> Program:
+    return Program([_pattern_to_program(p) for p in pattern.patterns])
