@@ -49,6 +49,7 @@ class Program(object):
         inst_lst = []
         if is_root:
             inst_lst.append(InsStart())
+            inst_lst.append(InsGroupStart(group_id=None))
 
         for s in self.sub:
             if isinstance(s, Instruction):
@@ -61,6 +62,7 @@ class Program(object):
             inst.ready()
 
         if is_root:
+            inst_lst.append(InsGroupEnd(group_id=None))
             inst_lst.append(InsSuccess())
         return inst_lst
 
@@ -135,22 +137,6 @@ class InsAny(Instruction):
     """Step on unconditionally"""
 
 
-class Thread(object):
-    def __init__(self, pc: int, sp: int, starter: int, groups=None):
-        self.pc: int = pc  # Program Counter
-        self.sp: int = sp  # String pointer
-        self.starter: int = starter  # where does the match started in the current string
-        self.groups = list(groups) or []  # group start end end marks
-
-        # Priority double ended link list
-        self.prio_former: 'Thread' = None
-        self.prio_later: 'Thread' = None
-
-    def to_ptnode(self) -> Optional[PTNode]:
-        # TODO
-        pass
-
-
 class Mark(object):
     def __init__(self, index: int, name, is_open: bool, depth: int):
         self.index: int = index
@@ -158,6 +144,50 @@ class Mark(object):
         self.is_open: bool = bool(is_open)
         self.is_close: bool = not self.is_open
         self.depth: int = depth
+
+    def is_pair(self, other: 'Mark') -> bool:
+        return isinstance(other, Mark) and self.name == other.name and (
+            (self.is_open and other.is_close)
+            or (self.is_close and other.is_open)
+        )
+
+
+class Thread(object):
+    def __init__(self, pc: int, sp: int, starter: int, marks=None):
+        self.pc: int = pc  # Program Counter
+        self.sp: int = sp  # String pointer
+        self.starter: int = starter  # where does the match started in the current string
+        self.marks: List[Mark] = list(marks) or []  # group start end end marks
+
+        # Priority double ended link list
+        self.prio_former: 'Thread' = None
+        self.prio_later: 'Thread' = None
+
+    def to_ptnode(self, text: str) -> Optional[PTNode]:
+        if not self.marks:
+            return
+
+        mark_stk: List[Mark] = []
+        node_stk: List[PTNode] = []
+
+        for m in self.marks:
+            if m.is_open:
+                mark_stk.append(m)
+            else:
+                assert mark_stk
+                m0 = mark_stk.pop()
+                assert m.is_pair(m0)
+
+                start = m0.index
+                end = m.index
+                chl = []
+                while node_stk and node_stk[-1].index >= start:
+                    chl.append(node_stk.pop())
+                node_stk.append(PTNode(text, start=start, end=end, children=chl, tag=m.name))
+
+        assert not mark_stk
+        assert len(node_stk) == 1
+        return node_stk[0]
 
 
 class Finder(object):
@@ -264,13 +294,13 @@ class Finder(object):
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsForkHigher):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, groups=th.groups)
+                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_higher(th1, than=th)
                     put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsForkLower):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, groups=th.groups)
+                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_lower(th1, than=th)
@@ -278,10 +308,10 @@ class Finder(object):
                 elif isinstance(ins, InsJump):
                     put_thread(ins, pc=ins.to, expel=True)
                 elif isinstance(ins, InsGroupStart):
-                    th.groups.append(Mark(index=ins.index, name=ins.group_id, is_open=True, depth=0))  # TODO depth
+                    th.marks.append(Mark(index=ins.index, name=ins.group_id, is_open=True, depth=0))  # TODO depth
                     put_thread(ins, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsGroupEnd):
-                    th.groups.append(Mark(index=ins.index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
+                    th.marks.append(Mark(index=ins.index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
                     put_thread(ins, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsPredicate):
                     if ins.pred(char, index=index):
@@ -305,7 +335,7 @@ def _pattern_to_program(pattern: Pattern) -> Program:
     raise TypeError('Pattern {} can\'t compiled to vm instructions')
 
 
-@_pattern_to_program.regster(PText)
+@_pattern_to_program.register(PText)
 def _ptext_to_program(pattern: PText) -> Program:
     assert len(pattern.text) > 0
     return Program([InsCompare(c) for c in pattern.text])
