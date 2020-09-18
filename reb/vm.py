@@ -3,6 +3,7 @@
 
 from typing import Iterator, List, Optional, Union, Dict, Callable, Sequence
 from functools import singledispatch
+from itertools import chain
 
 from .parse_tree import PTNode
 from .pattern import (
@@ -12,9 +13,13 @@ from .pattern import (
 
 class Instruction(object):
     """Instruction of the VM"""
+    name = None
 
     def ready(self):
         """Mark instruction as ready and should not be modified any more"""
+
+    def __str__(self):
+        return str(self.name)
 
 
 class Program(object):
@@ -22,16 +27,7 @@ class Program(object):
 
     def __init__(self, sub: List['SubProgram']):
         self.sub: List['SubProgram'] = sub
-
-        self.inst_lst: List[Instruction] = []
-        for s in self.sub:
-            if isinstance(s, Instruction):
-                self.inst_lst.append(s)
-            elif isinstance(s, Program):
-                self.inst_lst.extend(s.inst_lst)
-
-        self.inst_count: int = len(self.inst_lst)
-        
+        self.inst_count: Optional[int] = None
         self._offset: Optional[int] = None
 
     @property
@@ -44,28 +40,30 @@ class Program(object):
         assert val >= 0, 'An program offset should be gle zero'
         self._offset = val
 
-    def dump(self, is_root: bool = True, offset: int = 0) -> List[Instruction]:
+    def dump(self, offset: int = 0) -> List[Instruction]:
         """Dump to a list of instructions for execution"""
-        inst_lst: List[Instruction] = []
-        if is_root:
-            self.offset = 0
-            inst_lst.append(InsStart())
-            inst_lst.append(InsGroupStart(group_id=None))
+        inst_lst = [
+            InsStart(),
+            InsGroupStart(group_id=None)
+        ] + self._dump(offset=2) + [
+            InsGroupEnd(group_id=None),
+            InsSuccess()
+        ]
+        for inst in inst_lst:
+            inst.ready()
+        return inst_lst
 
+    def _dump(self, offset: int = 0) -> List[Instruction]:
+        """Dump to a list of instructions for execution"""
+        self.offset = offset
+        inst_lst: List[Instruction] = []
         for s in self.sub:
             if isinstance(s, Instruction):
                 inst_lst.append(s)
             elif isinstance(s, Program):
-                s.offset = offset + len(inst_lst)
-                ilst = s.dump(is_root=False, offset=s.offset)
+                ilst = s._dump(offset=offset + len(inst_lst))
                 inst_lst.extend(ilst)
-
-        if is_root:
-            inst_lst.append(InsGroupEnd(group_id=None))
-            inst_lst.append(InsSuccess())
-
-            for inst in inst_lst:
-                inst.ready()
+        self.inst_count = len(inst_lst)
         return inst_lst
 
 
@@ -81,64 +79,87 @@ class InsPointer(Instruction):
         self.to: int = -1
 
     def ready(self):
-        try:
-            assert self.program.offset >= 0
-        except AssertionError:
-            import pdb; pdb.set_trace()
+        assert self.program.offset >= 0
         if self.to_ending:
             self.to = self.program.offset + self.program.inst_count
         else:
             self.to = self.program.offset
         assert self.to >= 0
 
+    def __str__(self):
+        return '{} {}'.format(self.name, self.to)
+
 
 class InsStart(Instruction):
     """Start a re match"""
+    name = 'START'
 
 
 class InsSuccess(Instruction):
     """A match succeed in current thread"""
+    name = 'SUCCESS'
 
 
 class InsCompare(Instruction):
     """Step to next instruction only if current character equals <char>, otherwise current thread fails"""
+    name = 'CMP'
+
     def __init__(self, char: str):
         assert len(char) <= 1
         self.char: str = char
 
+    def __str__(self):
+        return '{} {}'.format(self.name, repr(self.char))
+
 
 class InsForkHigher(InsPointer):
     """Step on, create a new thread with higher priority, and put it to instruction at <to>"""
+    name = 'FORKH'
 
 
 class InsForkLower(InsPointer):
     """Step on, create a new thread with lower priority, and put it to instruction at <to>"""
+    name = 'FORKL'
 
 
 class InsJump(InsPointer):
     """Goto instruction at <to>"""
+    name = 'JMP'
 
 
 class InsGroupStart(Instruction):
     """Mark a group with <group_id> as start"""
+    name = 'GROUPSTART'
     def __init__(self, group_id):
         self.group_id = group_id
 
+    def __str__(self):
+        return '{} {}'.format(self.name, repr(self.group_id))
+
 
 class InsGroupEnd(Instruction):
+    name = 'GROUPEND'
     """Mark a group with <group_id> as ending"""
     def __init__(self, group_id):
         self.group_id = group_id
 
+    def __str__(self):
+        return '{} {}'.format(self.name, repr(self.group_id))
+
 
 class InsPredicate(Instruction):
+    name = 'PRED'
     """Step on only if <pred> get True, else fail current thread"""
     def __init__(self, pred):
         self.pred: Callable[[str, int], bool] = pred
 
+    def __str__(self):
+        return '{} {}'.format(self.name, repr(self.pred))
+
 
 class InsAny(Instruction):
     """Step on unconditionally"""
+    name = 'ANY'
 
 
 class Mark(object):
@@ -156,6 +177,14 @@ class Mark(object):
         )
 
 
+def _thread_id_generator():
+    i = 0
+    while True:
+        i += 1
+        yield i
+thread_id_generator = _thread_id_generator()
+
+
 class Thread(object):
     def __init__(self, pc: int, sp: int, starter: int, marks=None):
         self.pc: int = pc  # Program Counter
@@ -166,6 +195,8 @@ class Thread(object):
         # Priority double ended link list
         self.prio_former: Optional['Thread'] = None
         self.prio_later: Optional['Thread'] = None
+
+        self.id = next(thread_id_generator)
 
     def to_ptnode(self, text: str) -> Optional[PTNode]:
         if not self.marks:
@@ -193,6 +224,9 @@ class Thread(object):
         assert len(node_stk) == 1
         return node_stk[0]
 
+    def __str__(self):
+        return '<reb Thread {}>'.format(self.id)
+
 
 class Finder(object):
     def __init__(self, program: List[Instruction]):
@@ -215,6 +249,33 @@ class Finder(object):
         nxt_lo = Thread(pc=-1, sp=-1, starter=-1)  # helper node with lowest priority
         nxt_hi.prio_later = nxt_lo
         nxt_lo.prio_former = nxt_hi
+
+        def _print_state():
+            for i in range(len(self.program)):
+                line = '{}.\t{}'.format(i, str(self.program[i]))
+                if thread_map.get(i):
+                    line += '\t<- {}'.format(str(thread_map[i]))
+                print(line)
+            
+            segs = ['cur lst: head']
+            ptr = cur_hi.prio_later
+            while ptr is not cur_lo:
+                segs.append(str(ptr))
+                ptr = ptr.prio_later
+            segs.append('tail')
+            line = ' => '.join(segs)
+            print(line)
+
+            segs = ['nxt lst: head']
+            ptr = nxt_hi.prio_later
+            while ptr is not nxt_lo:
+                segs.append(str(ptr))
+                ptr = ptr.prio_later
+            segs.append('tail')
+            line = ' => '.join(segs)
+            print(line)
+
+            print()
 
         def _move_thread_off(thread: Thread) -> None:
             """Put a thread off from its linked list, nothing happens if it is not in a linked list"""
@@ -260,6 +321,7 @@ class Finder(object):
                     replace = expel
 
                 if not replace:
+                    _move_thread_off(thread)
                     return None
                 else:
                     del_thread(thread0)
@@ -268,8 +330,10 @@ class Finder(object):
             thread.pc = to
             return thread
 
-        # TODO: ending
-        for index, char in enumerate(text):
+        def eof():
+            yield ''
+
+        for index, char in enumerate(chain(iter(text), eof())):
             # for every new char, create a new thread
             # it should be the lowest priority in current linked list
             th = Thread(pc=0, sp=index, starter=index)
@@ -279,24 +343,32 @@ class Finder(object):
 
             # as long as the ready ll is not empty
             while cur_hi.prio_later is not cur_lo:
+                # _print_state()
+
                 # pick the ready thread with highest prioity and run it
                 th = cur_hi.prio_later
                 ins = program[th.pc]
                 if isinstance(ins, InsStart):
                     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsSuccess):
-                    # find a match, arrange it to be PTNodes, and re-init threads
-                    node = th.to_ptnode(text)
-                    assert node is not None
-                    yield node
-                    thread_map = {}
-                    cur_hi.prio_later = cur_lo
-                    nxt_hi.prio_later = nxt_lo
+                    if nxt_hi.prio_later is nxt_lo:
+                        # find a match, arrange it to be PTNodes, and re-init threads
+                        node = th.to_ptnode(text)
+                        assert node is not None
+                        yield node
+                        thread_map = {}
+                        cur_hi.prio_later = cur_lo
+                        cur_lo.prio_former = cur_hi
+                        nxt_hi.prio_later = nxt_lo
+                        nxt_lo.prio_former = nxt_hi
+                    else:
+                        move_thread_higher(th, than=nxt_lo)
                 elif isinstance(ins, InsCompare):
                     if ins.char == char:
                         # step on and put it to the lowest in next linked list
-                        put_thread(th, pc=th.pc + 1, expel=True)
-                        move_thread_higher(th, than=nxt_lo)
+                        th1 = put_thread(th, pc=th.pc + 1, expel=True)
+                        if th1:
+                            move_thread_higher(th, than=nxt_lo)
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsForkHigher):
@@ -321,13 +393,17 @@ class Finder(object):
                     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsPredicate):
                     if ins.pred(char, index):
-                        put_thread(th, pc=th.pc + 1, expel=True)
-                        move_thread_higher(th, than=nxt_lo)
+                        th1 = put_thread(th, pc=th.pc + 1, expel=True)
+                        if th1:
+                            move_thread_higher(th, than=nxt_lo)
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsAny):
-                    put_thread(th, pc=th.pc + 1, expel=True)
-                    move_thread_higher(th, than=nxt_lo)
+                    th1 = put_thread(th, pc=th.pc + 1, expel=True)
+                    if th1:
+                        move_thread_higher(th, than=nxt_lo)
+                else:
+                    raise TypeError('Invalid Instruction Type')
 
             cur_hi, cur_lo, nxt_hi, nxt_lo = nxt_hi, nxt_lo, cur_hi, cur_lo
 
@@ -420,7 +496,6 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
     
     # *
     elif (0, None) == (pattern._from, pattern._to):
-        import pdb; pdb.set_trace()
         prog = Program([
             # fork over
             prog0,
