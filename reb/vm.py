@@ -1,4 +1,12 @@
-"""Implement Regular Expression with vm"""
+"""Implement Regular Expression with vm
+
+Basic ideas borrowed mainly from https://swtch.com/~rsc/regexp/regexp2.html
+"""
+
+
+# TODO able to choose match engine (plain / vm) on doing pattern extractions
+# TODO make overall integrated tests and ensure the vm solves every conner case
+# TODO speed up vm
 
 
 from typing import Iterator, List, Optional, Union, Dict, Callable, Sequence
