@@ -8,8 +8,9 @@ from collections import defaultdict
 
 from .parse_tree import PTNode
 from .pattern import (
-    Pattern, PText, PAnyChar, PTag, PInChars, PNotInChars, PAny,
-    PClause, PRepeat, PAdjacent)
+    Pattern, PText, PAnyChar, PTag, PInChars, PNotInChars,
+    PAny, PClause, PRepeat, PAdjacent,
+    PExample)
 
 
 class Instruction(object):
@@ -38,7 +39,7 @@ class Program(object):
     @offset.setter
     def offset(self, val: int):
         assert self._offset is None, 'Once program has an offset, it can\'t be modified'
-        assert val >= 0, 'An program offset should be gle zero'
+        assert val >= 0, 'An program offset should be gte zero'
         self._offset = val
 
     def dump(self, offset: int = 0) -> List[Instruction]:
@@ -615,3 +616,8 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
 @_pattern_to_program.register(PAdjacent)
 def _padjacent_to_program(pattern: PAdjacent) -> Program:
     return Program([_pattern_to_program(p) for p in pattern.patterns])
+
+
+@_pattern_to_program.register(PExample)
+def _pexample_to_program(pattern: PExample) -> Program:
+    return _pattern_to_program(pattern.pattern)
