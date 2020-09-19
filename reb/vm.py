@@ -4,6 +4,7 @@
 from typing import Iterator, List, Optional, Union, Dict, Callable, Sequence
 from functools import singledispatch
 from itertools import chain
+from collections import defaultdict
 
 from .parse_tree import PTNode
 from .pattern import (
@@ -162,6 +163,35 @@ class InsAny(Instruction):
     name = 'ANY'
 
 
+class InsCount(Instruction):
+    """Count how many times a thread has passed this instruction"""
+    name = 'COUNT'
+
+
+class InsCountGTE(Instruction):
+    """Pass only if the thread has passed a given InsCount for more than or equals to  <bounder> times"""
+    name = 'COUNTGTE'
+
+    def __init__(self, counter: InsCount, bounder: int):
+        self.counter: InsCount = counter
+        self.bounder: int = bounder
+
+    def __str__(self):
+        return '{} {}'.format(self.name, self.bounder)
+
+
+class InsCountLTE(Instruction):
+    """Pass only if the thread has passed a given InsCount for less than or equals to <bounder> times"""
+    name = 'COUNTLTE'
+
+    def __init__(self, counter: InsCount, bounder: int):
+        self.counter: InsCount = counter
+        self.bounder: int = bounder
+
+    def __str__(self):
+        return '{} {}'.format(self.name, self.bounder)
+
+
 class Mark(object):
     def __init__(self, index: int, name, is_open: bool, depth: int):
         self.index: int = index
@@ -186,7 +216,8 @@ thread_id_generator = _thread_id_generator()
 
 
 class Thread(object):
-    def __init__(self, pc: int, sp: int, starter: int, marks=None):
+    def __init__(self, pc: int, sp: int, starter: int, marks=None,
+                 counter: Dict[InsCount, int] = None):
         self.pc: int = pc  # Program Counter
         self.sp: int = sp  # String pointer
         self.starter: int = starter  # where does the match started in the current string
@@ -195,6 +226,10 @@ class Thread(object):
         # Priority double ended link list
         self.prio_former: Optional['Thread'] = None
         self.prio_later: Optional['Thread'] = None
+
+        self.counter: Dict[InsCount, int] = defaultdict(int)
+        if counter:
+            self.counter.update(counter)
 
         self.id = next(thread_id_generator)
 
@@ -330,16 +365,19 @@ class Finder(object):
             thread.pc = to
             return thread
 
-        def eof():
-            yield ''
-
-        for index, char in enumerate(chain(iter(text), eof())):
+        def thread_for_new_char(index: int):
             # for every new char, create a new thread
             # it should be the lowest priority in current linked list
             th = Thread(pc=0, sp=index, starter=index)
             th1 = put_thread(th, pc=th.pc, expel=False)
             if th1:
                 move_thread_higher(th1, than=cur_lo)
+
+        def eof():
+            yield ''
+
+        for index, char in enumerate(chain(iter(text), eof())):
+            thread_for_new_char(index)
 
             # as long as the ready ll is not empty
             while cur_hi.prio_later is not cur_lo:
@@ -361,6 +399,8 @@ class Finder(object):
                         cur_lo.prio_former = cur_hi
                         nxt_hi.prio_later = nxt_lo
                         nxt_lo.prio_former = nxt_hi
+                        if th.starter != index:
+                            thread_for_new_char(index)
                     else:
                         move_thread_higher(th, than=nxt_lo)
                 elif isinstance(ins, InsCompare):
@@ -372,13 +412,13 @@ class Finder(object):
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsForkHigher):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
+                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks, counter=th.counter)
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_higher(th1, than=th)
                     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsForkLower):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
+                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks, counter=th.counter)
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_lower(th1, than=th)
@@ -402,8 +442,25 @@ class Finder(object):
                     th1 = put_thread(th, pc=th.pc + 1, expel=True)
                     if th1:
                         move_thread_higher(th, than=nxt_lo)
+                elif isinstance(ins, InsCount):
+                    th.counter[ins] += 1
+                    put_thread(th, pc=th.pc + 1, expel=True)
+                elif isinstance(ins, InsCountGTE):
+                    # print(th.counter, ins, ins.counter)
+                    if th.counter.get(ins.counter, 0) >= ins.bounder:
+                        put_thread(th, pc=th.pc + 1, expel=True)
+                    else:
+                        del_thread(th)
+                elif isinstance(ins, InsCountLTE):
+                    # print(th.counter, ins, ins.counter)
+                    if th.counter.get(ins.counter, 0) <= ins.bounder:
+                        put_thread(th, pc=th.pc + 1, expel=True)
+                    else:
+                        del_thread(th)
                 else:
                     raise TypeError('Invalid Instruction Type')
+
+            # _print_state()
 
             cur_hi, cur_lo, nxt_hi, nxt_lo = nxt_hi, nxt_lo, cur_hi, cur_lo
 
@@ -496,16 +553,61 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
     
     # *
     elif (0, None) == (pattern._from, pattern._to):
+        if pattern.greedy:
+            ins_cls = InsForkLower
+        else:
+            ins_cls = InsForkHigher
         prog = Program([
             # fork over
             prog0,
             # jump back
         ])
-        prog.sub = [InsForkLower(program=prog, to_ending=True)] + prog.sub
+        prog.sub = [ins_cls(program=prog, to_ending=True)] + prog.sub
         prog.sub = prog.sub + [InsJump(program=prog)]
 
+    # {x,}
+    elif None == pattern._to:
+        if pattern.greedy:
+            ins_cls = InsForkLower
+        else:
+            ins_cls = InsForkHigher
+        counter = InsCount()
+        prog = Program([
+            # fork over
+            prog0,
+            counter,
+            # jump back
+        ])
+        prog.sub = [ins_cls(program=prog, to_ending=True)] + prog.sub
+        prog.sub = prog.sub + [InsJump(program=prog)]
+        count_checker = InsCountGTE(counter, pattern._from)
+        prog = Program([
+            prog,
+            count_checker,
+        ])
+
+    # {x, y}
     else:
-        raise NotImplementedError('repeat exact times are not supported yet')
+        if pattern.greedy:
+            ins_cls = InsForkLower
+        else:
+            ins_cls = InsForkHigher
+        counter = InsCount()
+        prog = Program([
+            # fork over
+            prog0,
+            counter,
+            # jump back
+        ])
+        prog.sub = [ins_cls(program=prog, to_ending=True)] + prog.sub
+        prog.sub = prog.sub + [InsJump(program=prog)]
+        count_checker1 = InsCountGTE(counter, pattern._from)
+        count_checker2 = InsCountLTE(counter, pattern._to)
+        prog = Program([
+            prog,
+            count_checker1,
+            count_checker2
+        ])
 
     return prog
 
