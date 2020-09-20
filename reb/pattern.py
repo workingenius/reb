@@ -2,18 +2,7 @@ from itertools import permutations
 from typing import List, Optional, Iterator
 
 from .parse_tree import PTNode, VirtualPTNode
-
-
-class RebException(Exception):
-    pass
-
-
-class InvalidPattern(RebException):
-    pass
-
-
-class ExampleFail(RebException):
-    pass
+from .exceptions import RebException, InvalidPattern, ExampleFail
 
 
 class Pattern(object):
