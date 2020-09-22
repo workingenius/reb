@@ -77,6 +77,12 @@ class Program(object):
         self.inst_count = len(inst_lst)
         return inst_lst
 
+    def prepend(self, prog: 'SubProgram'):
+        self.sub = [prog] + self.sub
+
+    def append(self, prog: 'SubProgram'):
+        self.sub.append(prog)
+
 
 SubProgram = Union[Instruction, Program]
 
@@ -594,10 +600,8 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
             counter,
             # jump back
         ])
-        fork = [ins_cls(program=prog, to_ending=True)]
-        prog.sub = fork + prog.sub
-        jump = [InsJump(program=prog)]
-        prog.sub = prog.sub + jump
+        prog.prepend(ins_cls(program=prog, to_ending=True))
+        prog.append(InsJump(program=prog))
         count_checker = InsCountGTE(counter, pattern._from)
         prog = Program([
             prog,
@@ -620,13 +624,11 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
             # jump back
             # check lower bound
         ])
-        
-        fork = [ins_cls(program=prog, to_ending=True)]
-        count_checker2: List[SubProgram] = [InsCountLTE(counter, pattern._to - 1)]
-        prog.sub = fork + count_checker2 + prog.sub
 
-        jump = [InsJump(program=prog)]
-        prog.sub = prog.sub + jump
+        prog.prepend(InsCountLTE(counter, pattern._to - 1))
+        prog.prepend(ins_cls(program=prog, to_ending=True))
+        prog.append(InsJump(program=prog))
+        
         count_checker1 = InsCountGTE(counter, pattern._from)
         prog = Program([
             prog,
