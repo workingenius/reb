@@ -8,6 +8,11 @@ from .exceptions import RebException, InvalidPattern, ExampleFail
 DEFAULT_ENGINE = 'plain'
 
 
+class Finder(object):
+    def finditer(self, text: str) -> Iterator[PTNode]:
+        raise NotImplementedError
+
+
 class Pattern(object):
     def __init__(self):
         self.finders = {}
@@ -47,11 +52,11 @@ class Pattern(object):
 
     def finditer(self, text: str, engine=DEFAULT_ENGINE) -> Iterator[PTNode]:
         """Find pattern in text, yield them one after another"""
-        finder = self.finders.get(engine)
+        finder: Finder = self.finders.get(engine)
         if not finder:
             if engine == 'plain':
-                from .plain import compile_pattern as plain
-                compile_pattern = plain
+                from .plain import compile_pattern as _compile_pattern
+                compile_pattern = _compile_pattern
             elif engine == 'vm':
                 from .vm import compile_pattern as vm
                 compile_pattern = vm

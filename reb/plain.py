@@ -5,6 +5,7 @@ from functools import singledispatch
 
 from .parse_tree import PTNode, VirtualPTNode
 from .pattern import (
+    Finder,
     Pattern,
     PText, PAnyChar, PTag, PNotInChars, PInChars,
     PAny, PRepeat, PAdjacent,
@@ -18,12 +19,16 @@ __all__ = [
 ]
 
 
+def compile_pattern(pattern: Pattern) -> Finder:
+    return _compile_pattern(pattern)
+
+
 @singledispatch
-def compile_pattern(pattern: Pattern) -> 'FinderPlain':
+def _compile_pattern(pattern: Pattern) -> 'FinderPlain':
     raise TypeError
 
 
-class FinderPlain(object):
+class FinderPlain(Finder):
     def __init__(self, pattern: Pattern):
         self.pattern: Pattern = pattern
 
@@ -50,7 +55,7 @@ class FinderPlain(object):
                 cur += 1
 
 
-@compile_pattern.register(PText)
+@_compile_pattern.register(PText)
 class FText(FinderPlain):
     def __init__(self, pattern: PText):
         super().__init__(pattern)
@@ -61,18 +66,18 @@ class FText(FinderPlain):
             yield PTNode(text, start=start, end=start + len(self.text))
 
 
-@compile_pattern.register(PAnyChar)
+@_compile_pattern.register(PAnyChar)
 class FAnyChar(FinderPlain):
     def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         if start < len(text):
             yield PTNode(text, start=start, end=start + 1)
 
 
-@compile_pattern.register(PTag)
+@_compile_pattern.register(PTag)
 class FTag(FinderPlain):
     def __init__(self, pattern: PTag):
         super().__init__(pattern)
-        self.finder = compile_pattern(pattern.pattern)
+        self.finder = _compile_pattern(pattern.pattern)
         self.tag = pattern.tag
 
     def match(self, text, start=0) -> Iterator[PTNode]:
@@ -81,7 +86,7 @@ class FTag(FinderPlain):
             yield pt
 
 
-@compile_pattern.register(PNotInChars)
+@_compile_pattern.register(PNotInChars)
 class FNotInChars(FinderPlain):
     def __init__(self, pattern: PNotInChars):
         super().__init__(pattern)
@@ -94,7 +99,7 @@ class FNotInChars(FinderPlain):
             yield PTNode(text, start=start, end=start + 1)
 
 
-@compile_pattern.register(PInChars)
+@_compile_pattern.register(PInChars)
 class FInChars(FinderPlain):
     def __init__(self, pattern: PInChars):
         super().__init__(pattern)
@@ -107,11 +112,11 @@ class FInChars(FinderPlain):
             yield PTNode(text, start=start, end=start + 1)
 
 
-@compile_pattern.register(PAny)
+@_compile_pattern.register(PAny)
 class FAny(FinderPlain):
     def __init__(self, pattern: PAny):
         super().__init__(pattern)
-        self.finders = [compile_pattern(p) for p in pattern.patterns]
+        self.finders = [_compile_pattern(p) for p in pattern.patterns]
 
     def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
         for finder in self.finders:
@@ -119,11 +124,11 @@ class FAny(FinderPlain):
                 yield pt
 
 
-@compile_pattern.register(PRepeat)
+@_compile_pattern.register(PRepeat)
 class FRepeat(FinderPlain):
     def __init__(self, pattern: PRepeat):
         super().__init__(pattern)
-        self.finder = compile_pattern(pattern.pattern)
+        self.finder = _compile_pattern(pattern.pattern)
         self._from = pattern._from
         self._to = pattern._to
         self.greedy = pattern.greedy
@@ -146,9 +151,9 @@ class FRepeat(FinderPlain):
             yield pt
 
 
-@compile_pattern.register(PAdjacent)
+@_compile_pattern.register(PAdjacent)
 def compile_padjacent(pattern: PAdjacent):
-    return FAdjacent(pattern, [compile_pattern(p) for p in pattern.patterns])
+    return FAdjacent(pattern, [_compile_pattern(p) for p in pattern.patterns])
 
 
 class FAdjacent(FinderPlain):
@@ -188,19 +193,19 @@ class FAdjacent(FinderPlain):
                     idx_pos = res_stk[-1].index0
 
 
-@compile_pattern.register(PExample)
+@_compile_pattern.register(PExample)
 def compile_pexample(pattern: PExample):
-    return compile_pattern(pattern.pattern)
+    return _compile_pattern(pattern.pattern)
 
 
-@compile_pattern.register(PStarting)
+@_compile_pattern.register(PStarting)
 class FStarting(FinderPlain):
     def match(self, text, start=0):
         if start == 0:
             yield PTNode(text, start=start, end=start)
 
 
-@compile_pattern.register(PEnding)
+@_compile_pattern.register(PEnding)
 class FEnding(FinderPlain):
     def match(self, text, start=0):
         if start == len(text):

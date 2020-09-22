@@ -16,6 +16,7 @@ from collections import defaultdict
 
 from .parse_tree import PTNode
 from .pattern import (
+    Finder as BaseFinder,
     Pattern, PText, PAnyChar, PTag, PInChars, PNotInChars,
     PAny, PClause, PRepeat, PAdjacent,
     PExample)
@@ -272,7 +273,7 @@ class Thread(object):
         return '<reb Thread {}>'.format(self.id)
 
 
-class Finder(object):
+class Finder(BaseFinder):
     def __init__(self, program: List[Instruction]):
         self.program: List[Instruction] = program
 
