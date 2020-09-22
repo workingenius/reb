@@ -9,7 +9,7 @@ Basic ideas borrowed mainly from https://swtch.com/~rsc/regexp/regexp2.html
 # TODO speed up vm
 
 
-from typing import Iterator, List, Optional, Union, Dict, Callable, Sequence
+from typing import Iterator, List, Optional, Union, Dict, Callable, Sequence, Type
 from functools import singledispatch
 from itertools import chain
 from collections import defaultdict
@@ -24,7 +24,7 @@ from .pattern import (
 
 class Instruction(object):
     """Instruction of the VM"""
-    name = None
+    name: Optional[str] = None
 
     def ready(self):
         """Mark instruction as ready and should not be modified any more"""
@@ -533,6 +533,9 @@ def _pany_to_program(pattern: PAny) -> Program:
 
 @_pattern_to_program.register(PRepeat)
 def _prepeat_to_program(pattern: PRepeat) -> Program:
+    fork: List[SubProgram]
+    jump: List[SubProgram]
+
     prog0 = _pattern_to_program(pattern.pattern)
 
     # ?
@@ -563,6 +566,7 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
     
     # *
     elif (0, None) == (pattern._from, pattern._to):
+        ins_cls: Type[Instruction]
         if pattern.greedy:
             ins_cls = InsForkLower
         else:
@@ -572,11 +576,13 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
             prog0,
             # jump back
         ])
-        prog.sub = [ins_cls(program=prog, to_ending=True)] + prog.sub
-        prog.sub = prog.sub + [InsJump(program=prog)]
+        fork = [ins_cls(program=prog, to_ending=True)]
+        prog.sub = fork + prog.sub
+        jump = [InsJump(program=prog)]
+        prog.sub = prog.sub + jump
 
     # {x,}
-    elif None == pattern._to:
+    elif pattern._to is None:
         if pattern.greedy:
             ins_cls = InsForkLower
         else:
@@ -588,8 +594,10 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
             counter,
             # jump back
         ])
-        prog.sub = [ins_cls(program=prog, to_ending=True)] + prog.sub
-        prog.sub = prog.sub + [InsJump(program=prog)]
+        fork = [ins_cls(program=prog, to_ending=True)]
+        prog.sub = fork + prog.sub
+        jump = [InsJump(program=prog)]
+        prog.sub = prog.sub + jump
         count_checker = InsCountGTE(counter, pattern._from)
         prog = Program([
             prog,
@@ -598,6 +606,7 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
 
     # {x, y}
     else:
+        assert pattern._to is not None
         if pattern.greedy:
             ins_cls = InsForkLower
         else:
@@ -609,8 +618,10 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
             counter,
             # jump back
         ])
-        prog.sub = [ins_cls(program=prog, to_ending=True)] + prog.sub
-        prog.sub = prog.sub + [InsJump(program=prog)]
+        fork = [ins_cls(program=prog, to_ending=True)]
+        prog.sub = fork + prog.sub
+        jump = [InsJump(program=prog)]
+        prog.sub = prog.sub + jump
         count_checker1 = InsCountGTE(counter, pattern._from)
         count_checker2 = InsCountLTE(counter, pattern._to)
         prog = Program([
