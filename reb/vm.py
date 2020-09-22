@@ -614,20 +614,23 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
         counter = InsCount()
         prog = Program([
             # fork over
+            # check upper bound
             prog0,
             counter,
             # jump back
+            # check lower bound
         ])
+        
         fork = [ins_cls(program=prog, to_ending=True)]
-        prog.sub = fork + prog.sub
+        count_checker2: List[SubProgram] = [InsCountLTE(counter, pattern._to - 1)]
+        prog.sub = fork + count_checker2 + prog.sub
+
         jump = [InsJump(program=prog)]
         prog.sub = prog.sub + jump
         count_checker1 = InsCountGTE(counter, pattern._from)
-        count_checker2 = InsCountLTE(counter, pattern._to)
         prog = Program([
             prog,
             count_checker1,
-            count_checker2
         ])
 
     return prog
