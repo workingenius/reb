@@ -30,7 +30,7 @@ def pt_for_user(ptnode: PTNode) -> PTNode:
                                                key=lambda n: (n.start, n.end, n.tag))
 
 
-class TestExtractionPlain():
+class TestExtractionPlain(object):
     def case(self, pattern, text, expect_pt):
         same(pattern.extractall(text, engine='plain'), expect_pt)
 
