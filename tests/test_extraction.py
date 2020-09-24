@@ -75,6 +75,9 @@ def test_pany():
 def test_prepeat():
     case(P.n('a'), 'aaa', ['aaa'])
 
+    case(P.n('a', 0, 1), 'aaa', ['a', 'a', 'a'])
+    case(P.n('a', 0, 1), '', [])
+
     case(P.n('a', 4), 'a' * 3, [])
     case(P.n('a', 4), 'a' * 4, ['a' * 4])
     case(P.n('a', 4), 'a' * 5, ['a' * 5])
