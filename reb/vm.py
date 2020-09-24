@@ -19,6 +19,7 @@ from .pattern import (
     Finder as BaseFinder,
     Pattern, PText, PAnyChar, PTag, PInChars, PNotInChars,
     PAny, PClause, PRepeat, PAdjacent,
+    PStarting, PEnding,
     PExample)
 
 
@@ -147,6 +148,7 @@ class InsJump(InsPointer):
 class InsGroupStart(Instruction):
     """Mark a group with <group_id> as start"""
     name = 'GROUPSTART'
+
     def __init__(self, group_id):
         self.group_id = group_id
 
@@ -155,8 +157,9 @@ class InsGroupStart(Instruction):
 
 
 class InsGroupEnd(Instruction):
-    name = 'GROUPEND'
     """Mark a group with <group_id> as ending"""
+    name = 'GROUPEND'
+
     def __init__(self, group_id):
         self.group_id = group_id
 
@@ -165,10 +168,11 @@ class InsGroupEnd(Instruction):
 
 
 class InsPredicate(Instruction):
-    name = 'PRED'
     """Step on only if <pred> get True, else fail current thread"""
+    name = 'PRED'
+
     def __init__(self, pred):
-        self.pred: Callable[[str, int], bool] = pred
+        self.pred: Callable[[str, int, str], bool] = pred
 
     def __str__(self):
         return '{} {}'.format(self.name, repr(self.pred))
@@ -206,6 +210,17 @@ class InsCountLTE(Instruction):
 
     def __str__(self):
         return '{} {}'.format(self.name, self.bounder)
+
+
+class InsAssert(Instruction):
+    """If pred is not satisfied, fail the thread"""
+    name = 'ASSERT'
+
+    def __init__(self, pred):
+        self.pred: Callable[[str, int, str], bool] = pred
+
+    def __str__(self):
+        return '{} {}'.format(self.name, repr(self.pred))
 
 
 class Mark(object):
@@ -448,7 +463,7 @@ class Finder(BaseFinder):
                     th.marks.append(Mark(index=index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
                     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsPredicate):
-                    if ins.pred(char, index):
+                    if ins.pred(char, index, text):
                         th1 = put_thread(th, pc=th.pc + 1, expel=True)
                         if th1:
                             move_thread_higher(th, than=nxt_lo)
@@ -471,6 +486,13 @@ class Finder(BaseFinder):
                     # print(th.counter, ins, ins.counter)
                     if th.counter.get(ins.counter, 0) <= ins.bounder:
                         put_thread(th, pc=th.pc + 1, expel=True)
+                    else:
+                        del_thread(th)
+                elif isinstance(ins, InsAssert):
+                    if ins.pred(char, index, text):
+                        th1 = put_thread(th, pc=th.pc + 1, expel=True)
+                        if th1:
+                            move_thread_higher(th, than=cur_lo)
                     else:
                         del_thread(th)
                 else:
@@ -512,12 +534,12 @@ def _ptag_to_program(pattern: PTag) -> Program:
 
 @_pattern_to_program.register(PInChars)
 def _pinchars_to_program(pattern: PInChars) -> Program:
-    return Program([InsPredicate((lambda c, i: c in pattern.chars))])
+    return Program([InsPredicate((lambda c, i, t: c in pattern.chars))])
 
 
 @_pattern_to_program.register(PNotInChars)
 def _pnotinchars_to_program(pattern: PNotInChars) -> Program:
-    return Program([InsPredicate((lambda c, i: c not in pattern.chars))])
+    return Program([InsPredicate((lambda c, i, t: c not in pattern.chars))])
 
 
 @_pattern_to_program.register(PAny)
@@ -646,3 +668,13 @@ def _padjacent_to_program(pattern: PAdjacent) -> Program:
 @_pattern_to_program.register(PExample)
 def _pexample_to_program(pattern: PExample) -> Program:
     return _pattern_to_program(pattern.pattern)
+
+
+@_pattern_to_program.register(PStarting)
+def _pstarting_to_program(pattern: PStarting) -> Program:
+    return Program([InsAssert(lambda c, i, t: i == 0)])
+
+
+@_pattern_to_program.register(PEnding)
+def _pending_to_program(pattern: PEnding) -> Program:
+    return Program([InsAssert(lambda c, i, t: i == len(t))])

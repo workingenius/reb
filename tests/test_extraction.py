@@ -99,6 +99,14 @@ class TestExtractionPlain():
         self.case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'aaafe', [])
         self.case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'aacae', [])
 
+    def test_pstarting(self):
+        self.case(P.STARTING + 'a', 'aaa', [PTNode('aaa', start=0, end=1)])
+        self.case(P.STARTING + 'a', 'baa', [])
+
+    def test_pending(self):
+        self.case('a' + P.ENDING, 'aaa', [PTNode('aaa', start=2, end=3)])
+        self.case('a' + P.ENDING, 'aab', [])
+
     def test_overall1(self):
         text = 'a' * 10 + 'b'
         self.case(P.tag(P.n('a'), tag='A') + 'b', text, [
