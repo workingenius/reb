@@ -30,92 +30,88 @@ def pt_for_user(ptnode: PTNode) -> PTNode:
                                                key=lambda n: (n.start, n.end, n.tag))
 
 
-def case(pattern, text, expect_pt):
-    same(pattern.extractall(text, engine='plain'), expect_pt)
-    same(pattern.extractall(text, engine='vm'), expect_pt)
+class TestExtractionPlain():
+    def case(self, pattern, text, expect_pt):
+        same(pattern.extractall(text, engine='plain'), expect_pt)
 
+    def test_ptext(self):
+        self.case(P.pattern('a'), 'a', ['a'])
+        self.case(P.pattern('a'), 'aa', ['a', 'a'])
+        self.case(P.pattern('a'), 'aba', ['a', 'a'])
+        self.case(P.pattern('a'), 'b', [])
 
-def test_ptext():
-    case(P.pattern('a'), 'a', ['a'])
-    case(P.pattern('a'), 'aa', ['a', 'a'])
-    case(P.pattern('a'), 'aba', ['a', 'a'])
-    case(P.pattern('a'), 'b', [])
+    def test_panychar(self):
+        self.case(P.ANYCHAR, 'a', ['a'])
+        self.case(P.ANYCHAR, 'b', ['b'])
+        self.case(P.ANYCHAR, ' ', [' '])
+        self.case(P.ANYCHAR, '\n', ['\n'])
+        self.case(P.ANYCHAR, '', [])
+        self.case(P.ANYCHAR, 'abc', ['a', 'b', 'c'])
 
+    def test_pinchars(self):
+        self.case(P.ic('bcd'), 'a', [])
+        self.case(P.ic('abc'), 'a', ['a'])
+        self.case(P.ic('abc'), 'b', ['b'])
+        self.case(P.ic('abc'), 'c', ['c'])
+        self.case(P.ic('abc'), 'abcdef', ['a', 'b', 'c'])
 
-def test_panychar():
-    case(P.ANYCHAR, 'a', ['a'])
-    case(P.ANYCHAR, 'b', ['b'])
-    case(P.ANYCHAR, ' ', [' '])
-    case(P.ANYCHAR, '\n', ['\n'])
-    case(P.ANYCHAR, '', [])
-    case(P.ANYCHAR, 'abc', ['a', 'b', 'c'])
+    def test_pnotinchars(self):
+        self.case(P.nic('bcd'), 'a', ['a'])
+        self.case(P.nic('abc'), 'a', [])
+        self.case(P.nic('abc'), 'b', [])
+        self.case(P.nic('abc'), 'c', [])
+        self.case(P.nic('abc'), 'abcdef', ['d', 'e', 'f'])
 
+    def test_pany(self):
+        self.case(P.any('ab', 'abc', 'cd'), 'abcdef', ['ab', 'cd'])
+        self.case(P.any('aa', 'ab', 'ac'), 'aaaaaa', ['aa', 'aa', 'aa'])
 
-def test_pinchars():
-    case(P.ic('bcd'), 'a', [])
-    case(P.ic('abc'), 'a', ['a'])
-    case(P.ic('abc'), 'b', ['b'])
-    case(P.ic('abc'), 'c', ['c'])
-    case(P.ic('abc'), 'abcdef', ['a', 'b', 'c'])
+    def test_prepeat(self):
+        self.case(P.n('a'), 'aaa', ['aaa'])
 
+        self.case(P.n('a', 0, 1), 'aaa', ['a', 'a', 'a'])
+        self.case(P.n('a', 0, 1), '', [])
 
-def test_pnotinchars():
-    case(P.nic('bcd'), 'a', ['a'])
-    case(P.nic('abc'), 'a', [])
-    case(P.nic('abc'), 'b', [])
-    case(P.nic('abc'), 'c', [])
-    case(P.nic('abc'), 'abcdef', ['d', 'e', 'f'])
+        self.case(P.n('a', 4), 'a' * 3, [])
+        self.case(P.n('a', 4), 'a' * 4, ['a' * 4])
+        self.case(P.n('a', 4), 'a' * 5, ['a' * 5])
+        self.case(P.n('a', 4), 'a' * 20, ['a' * 20])
 
+        self.case(P.n('a', 0, 5), 'a' * 6, ['aaaaa', 'a'])
+        self.case(P.n('a', 0, 5), 'a' * 10, ['aaaaa', 'aaaaa'])
 
-def test_pany():
-    case(P.any('ab', 'abc', 'cd'), 'abcdef', ['ab', 'cd'])
-    case(P.any('aa', 'ab', 'ac'), 'aaaaaa', ['aa', 'aa', 'aa'])
+        self.case(P.n('a', 2, 3), 'a' * 6, ['aaa', 'aaa'])
+        self.case(P.n('a', 3, 5), 'a' * 9, ['aaaaa', 'aaaa'])
+        self.case(P.n('a', exact=2), 'a' * 5, ['aa', 'aa'])
 
+        self.case(P.n('a', greedy=False), 'aaa', [])
 
-def test_prepeat():
-    case(P.n('a'), 'aaa', ['aaa'])
+    def test_padjacent(self):
+        self.case(P.pattern('a') + P.ic('abcde'), 'ab', ['ab'])
+        self.case(P.pattern('a') + P.ic('abcde'), 'ac', ['ac'])
+        self.case(P.pattern('a') + P.ic('abcde'), 'ad', ['ad'])
+        self.case(P.pattern('a') + P.ic('abcde'), 'af', [])
+        self.case(P.pattern('a') + P.ic('abcde'), 'ba', [])
 
-    case(P.n('a', 0, 1), 'aaa', ['a', 'a', 'a'])
-    case(P.n('a', 0, 1), '', [])
+        self.case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'aacee', ['ace'])
+        self.case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'abdfe', ['bdf'])
+        self.case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'acdfe', [])
+        self.case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'aaafe', [])
+        self.case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'aacae', [])
 
-    case(P.n('a', 4), 'a' * 3, [])
-    case(P.n('a', 4), 'a' * 4, ['a' * 4])
-    case(P.n('a', 4), 'a' * 5, ['a' * 5])
-    case(P.n('a', 4), 'a' * 20, ['a' * 20])
-
-    case(P.n('a', 0, 5), 'a' * 6, ['aaaaa', 'a'])
-    case(P.n('a', 0, 5), 'a' * 10, ['aaaaa', 'aaaaa'])
-
-    case(P.n('a', 2, 3), 'a' * 6, ['aaa', 'aaa'])
-    case(P.n('a', 3, 5), 'a' * 9, ['aaaaa', 'aaaa'])
-    case(P.n('a', exact=2), 'a' * 5, ['aa', 'aa'])
-
-    case(P.n('a', greedy=False), 'aaa', [])
-
-
-def test_padjacent():
-    case(P.pattern('a') + P.ic('abcde'), 'ab', ['ab'])
-    case(P.pattern('a') + P.ic('abcde'), 'ac', ['ac'])
-    case(P.pattern('a') + P.ic('abcde'), 'ad', ['ad'])
-    case(P.pattern('a') + P.ic('abcde'), 'af', [])
-    case(P.pattern('a') + P.ic('abcde'), 'ba', [])
-
-    case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'aacee', ['ace'])
-    case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'abdfe', ['bdf'])
-    case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'acdfe', [])
-    case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'aaafe', [])
-    case(P.ic('ab') + P.ic('cd') + P.ic('ef'), 'aacae', [])
-
-
-def test_overall1():
-    text = 'a' * 10 + 'b'
-    case(P.tag(P.n('a'), tag='A') + 'b', text, [
-        PTNode(text=text, start=0, end=11, children=[
-            PTNode(text=text, start=0, end=10, tag='A')
+    def test_overall1(self):
+        text = 'a' * 10 + 'b'
+        self.case(P.tag(P.n('a'), tag='A') + 'b', text, [
+            PTNode(text=text, start=0, end=11, children=[
+                PTNode(text=text, start=0, end=10, tag='A')
+            ])
         ])
-    ])
+
+    def test_overall2(self):
+        text = 'a' * 30 + 'c'
+        self.case(P.n('a') + 'b', text, [])
 
 
-def test_overall2():
-    text = 'a' * 30 + 'c'
-    case(P.n('a') + 'b', text, [])
+class TestExtractionVM(TestExtractionPlain):
+    def case(self, pattern, text, expect_pt):
+        same(pattern.extractall(text, engine='vm'), expect_pt)
