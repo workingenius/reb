@@ -473,6 +473,7 @@ class Finder(BaseFinder):
                     th1 = put_thread(th, pc=th.pc + 1, expel=True)
                     if th1:
                         move_thread_higher(th, than=nxt_lo)
+                # TODO: a bug spotted: nowhere to clean the count, so if a thread enter a loop several times, the bug appears
                 elif isinstance(ins, InsCount):
                     th.counter[ins] += 1
                     put_thread(th, pc=th.pc + 1, expel=True)
