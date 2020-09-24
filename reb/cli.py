@@ -11,6 +11,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('-p', '--pattern', help='import path of the pattern object')
     ap.add_argument('-i', '--input', help='file to extract info', type=Path)
+    ap.add_argument('-e', '--engine', help='which engine to use', default='plain', choices=['plain', 'vm'])
     args = ap.parse_args()
     
     input_file_path: Path
@@ -27,7 +28,7 @@ def main():
     
     with open(input_file_path, 'r') as fo:
         text = fo.read()
-        extraction = pattern.extractiter(text)
+        extraction = pattern.extractiter(text, engine=args.engine)
         
         for segment in extraction:
             segment.pp()
