@@ -9,6 +9,7 @@ Basic ideas borrowed mainly from https://swtch.com/~rsc/regexp/regexp2.html
 # TODO speed up vm
 
 
+import os
 from typing import Iterator, List, Optional, Union, Dict, Callable, Sequence, Type
 from functools import singledispatch
 from itertools import chain
@@ -21,6 +22,9 @@ from .pattern import (
     PAny, PClause, PRepeat, PAdjacent,
     PStarting, PEnding,
     PExample)
+
+
+DEBUG = bool(os.environ.get('REB_DEBUG'))
 
 
 class Instruction(object):
@@ -412,7 +416,8 @@ class Finder(BaseFinder):
 
             # as long as the ready ll is not empty
             while cur_hi.prio_later is not cur_lo:
-                # _print_state()
+                if DEBUG:
+                    _print_state()
 
                 # pick the ready thread with highest prioity and run it
                 th = cur_hi.prio_later
@@ -499,7 +504,8 @@ class Finder(BaseFinder):
                 else:
                     raise TypeError('Invalid Instruction Type')
 
-            # _print_state()
+            if DEBUG:
+                _print_state()
 
             cur_hi, cur_lo, nxt_hi, nxt_lo = nxt_hi, nxt_lo, cur_hi, cur_lo
 
