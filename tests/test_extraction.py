@@ -120,6 +120,9 @@ class ExtractionTestCases(object):
         text = 'a' * 6
         self.case(P.n(P.n('a', exact=3)), text, ['a' * 6])
 
+        text = 'a' * 8
+        self.case(P.n(P.n('a', exact=3)), text, ['a' * 6])
+
 
 class TestExtractionPlain(ExtractionTestCases):
     def case(self, pattern, text, expect_pt):
