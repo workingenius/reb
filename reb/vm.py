@@ -204,6 +204,14 @@ class InsCountGTE(Instruction):
         return '{} {}'.format(self.name, self.bounder)
 
 
+class InsCountClear(Instruction):
+    """Clear a counter"""
+    name = 'COUNTCLR'
+
+    def __init__(self, counter: InsCount):
+        self.counter: InsCount = counter
+
+
 class InsCountLTE(Instruction):
     """Pass only if the thread has passed a given InsCount for less than or equals to <bounder> times"""
     name = 'COUNTLTE'
@@ -478,7 +486,6 @@ class Finder(BaseFinder):
                     th1 = put_thread(th, pc=th.pc + 1, expel=True)
                     if th1:
                         move_thread_higher(th, than=nxt_lo)
-                # TODO: a bug spotted: nowhere to clean the count, so if a thread enter a loop several times, the bug appears
                 elif isinstance(ins, InsCount):
                     th.counter[ins] += 1
                     put_thread(th, pc=th.pc + 1, expel=True)
@@ -494,6 +501,9 @@ class Finder(BaseFinder):
                         put_thread(th, pc=th.pc + 1, expel=True)
                     else:
                         del_thread(th)
+                elif isinstance(ins, InsCountClear):
+                    th.counter[ins.counter] = 0
+                    put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsAssert):
                     if ins.pred(char, index, text):
                         th1 = put_thread(th, pc=th.pc + 1, expel=True)
@@ -628,6 +638,8 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
             prog0,
             counter,
             # jump back
+            # check lower bound
+            # counter clear
         ])
         prog.prepend(ins_cls(program=prog, to_ending=True))
         prog.append(InsJump(program=prog))
@@ -635,6 +647,7 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
         prog = Program([
             prog,
             count_checker,
+            InsCountClear(counter)
         ])
 
     # {x, y}
@@ -652,6 +665,7 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
             counter,
             # jump back
             # check lower bound
+            # counter clear
         ])
 
         prog.prepend(InsCountLTE(counter, pattern._to - 1))
@@ -662,6 +676,7 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
         prog = Program([
             prog,
             count_checker1,
+            InsCountClear(counter)
         ])
 
     return prog

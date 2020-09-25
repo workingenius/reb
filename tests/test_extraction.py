@@ -30,10 +30,7 @@ def pt_for_user(ptnode: PTNode) -> PTNode:
                                                key=lambda n: (n.start, n.end, n.tag))
 
 
-class TestExtractionPlain(object):
-    def case(self, pattern, text, expect_pt):
-        same(pattern.extractall(text, engine='plain'), expect_pt)
-
+class ExtractionTestCases(object):
     def test_ptext(self):
         self.case(P.pattern('a'), 'a', ['a'])
         self.case(P.pattern('a'), 'aa', ['a', 'a'])
@@ -119,7 +116,16 @@ class TestExtractionPlain(object):
         text = 'a' * 30 + 'c'
         self.case(P.n('a') + 'b', text, [])
 
+    def test_overall3(self):
+        text = 'a' * 6
+        self.case(P.n(P.n('a', exact=3)), text, ['a' * 6])
 
-class TestExtractionVM(TestExtractionPlain):
+
+class TestExtractionPlain(ExtractionTestCases):
+    def case(self, pattern, text, expect_pt):
+        same(pattern.extractall(text, engine='plain'), expect_pt)
+
+
+class TestExtractionVM(ExtractionTestCases):
     def case(self, pattern, text, expect_pt):
         same(pattern.extractall(text, engine='vm'), expect_pt)
