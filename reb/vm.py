@@ -190,43 +190,6 @@ class InsAny(Instruction):
     name = 'ANY'
 
 
-# class InsCount(Instruction):
-#     """Count how many times a thread has passed this instruction"""
-#     name = 'COUNT'
-
-
-# class InsCountGTE(Instruction):
-#     """Pass only if the thread has passed a given InsCount for more than or equals to  <bounder> times"""
-#     name = 'COUNTGTE'
-
-#     def __init__(self, counter: InsCount, bounder: int):
-#         self.counter: InsCount = counter
-#         self.bounder: int = bounder
-
-#     def __str__(self):
-#         return '{} {}'.format(self.name, self.bounder)
-
-
-# class InsCountClear(Instruction):
-#     """Clear a counter"""
-#     name = 'COUNTCLR'
-
-#     def __init__(self, counter: InsCount):
-#         self.counter: InsCount = counter
-
-
-# class InsCountLTE(Instruction):
-#     """Pass only if the thread has passed a given InsCount for less than or equals to <bounder> times"""
-#     name = 'COUNTLTE'
-
-#     def __init__(self, counter: InsCount, bounder: int):
-#         self.counter: InsCount = counter
-#         self.bounder: int = bounder
-
-#     def __str__(self):
-#         return '{} {}'.format(self.name, self.bounder)
-
-
 class InsAssert(Instruction):
     """If pred is not satisfied, fail the thread"""
     name = 'ASSERT'
@@ -262,9 +225,7 @@ thread_id_generator = _thread_id_generator()
 
 
 class Thread(object):
-    def __init__(self, pc: int, sp: int, starter: int, marks=None,
-                #  counter: Dict[InsCount, int] = None
-        ):
+    def __init__(self, pc: int, sp: int, starter: int, marks=None):
         self.pc: int = pc  # Program Counter
         self.sp: int = sp  # String pointer
         self.starter: int = starter  # where does the match started in the current string
@@ -273,10 +234,6 @@ class Thread(object):
         # Priority double ended link list
         self.prio_former: Optional['Thread'] = None
         self.prio_later: Optional['Thread'] = None
-
-        # self.counter: Dict[InsCount, int] = defaultdict(int)
-        # if counter:
-        #     self.counter.update(counter)
 
         self.id = next(thread_id_generator)
 
@@ -460,17 +417,13 @@ class Finder(BaseFinder):
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsForkHigher):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks,
-                                #  counter=th.counter
-                    )
+                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_higher(th1, than=th)
                     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsForkLower):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks,
-                                #  counter=th.counter
-                    )
+                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_lower(th1, than=th)
@@ -494,24 +447,6 @@ class Finder(BaseFinder):
                     th1 = put_thread(th, pc=th.pc + 1, expel=True)
                     if th1:
                         move_thread_higher(th, than=nxt_lo)
-                # elif isinstance(ins, InsCount):
-                #     th.counter[ins] += 1
-                #     put_thread(th, pc=th.pc + 1, expel=True)
-                # elif isinstance(ins, InsCountGTE):
-                #     # print(th.counter, ins, ins.counter)
-                #     if th.counter.get(ins.counter, 0) >= ins.bounder:
-                #         put_thread(th, pc=th.pc + 1, expel=True)
-                #     else:
-                #         del_thread(th)
-                # elif isinstance(ins, InsCountLTE):
-                #     # print(th.counter, ins, ins.counter)
-                #     if th.counter.get(ins.counter, 0) <= ins.bounder:
-                #         put_thread(th, pc=th.pc + 1, expel=True)
-                #     else:
-                #         del_thread(th)
-                # elif isinstance(ins, InsCountClear):
-                #     th.counter[ins.counter] = 0
-                #     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsAssert):
                     if ins.pred(char, index, text):
                         th1 = put_thread(th, pc=th.pc + 1, expel=True)
