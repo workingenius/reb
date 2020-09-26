@@ -88,6 +88,9 @@ class Program(object):
     def append(self, prog: 'SubProgram'):
         self.sub.append(prog)
 
+    def copy(self):
+        return Program(list(self.sub))
+
 
 SubProgram = Union[Instruction, Program]
 
@@ -187,41 +190,41 @@ class InsAny(Instruction):
     name = 'ANY'
 
 
-class InsCount(Instruction):
-    """Count how many times a thread has passed this instruction"""
-    name = 'COUNT'
+# class InsCount(Instruction):
+#     """Count how many times a thread has passed this instruction"""
+#     name = 'COUNT'
 
 
-class InsCountGTE(Instruction):
-    """Pass only if the thread has passed a given InsCount for more than or equals to  <bounder> times"""
-    name = 'COUNTGTE'
+# class InsCountGTE(Instruction):
+#     """Pass only if the thread has passed a given InsCount for more than or equals to  <bounder> times"""
+#     name = 'COUNTGTE'
 
-    def __init__(self, counter: InsCount, bounder: int):
-        self.counter: InsCount = counter
-        self.bounder: int = bounder
+#     def __init__(self, counter: InsCount, bounder: int):
+#         self.counter: InsCount = counter
+#         self.bounder: int = bounder
 
-    def __str__(self):
-        return '{} {}'.format(self.name, self.bounder)
-
-
-class InsCountClear(Instruction):
-    """Clear a counter"""
-    name = 'COUNTCLR'
-
-    def __init__(self, counter: InsCount):
-        self.counter: InsCount = counter
+#     def __str__(self):
+#         return '{} {}'.format(self.name, self.bounder)
 
 
-class InsCountLTE(Instruction):
-    """Pass only if the thread has passed a given InsCount for less than or equals to <bounder> times"""
-    name = 'COUNTLTE'
+# class InsCountClear(Instruction):
+#     """Clear a counter"""
+#     name = 'COUNTCLR'
 
-    def __init__(self, counter: InsCount, bounder: int):
-        self.counter: InsCount = counter
-        self.bounder: int = bounder
+#     def __init__(self, counter: InsCount):
+#         self.counter: InsCount = counter
 
-    def __str__(self):
-        return '{} {}'.format(self.name, self.bounder)
+
+# class InsCountLTE(Instruction):
+#     """Pass only if the thread has passed a given InsCount for less than or equals to <bounder> times"""
+#     name = 'COUNTLTE'
+
+#     def __init__(self, counter: InsCount, bounder: int):
+#         self.counter: InsCount = counter
+#         self.bounder: int = bounder
+
+#     def __str__(self):
+#         return '{} {}'.format(self.name, self.bounder)
 
 
 class InsAssert(Instruction):
@@ -260,7 +263,8 @@ thread_id_generator = _thread_id_generator()
 
 class Thread(object):
     def __init__(self, pc: int, sp: int, starter: int, marks=None,
-                 counter: Dict[InsCount, int] = None):
+                #  counter: Dict[InsCount, int] = None
+        ):
         self.pc: int = pc  # Program Counter
         self.sp: int = sp  # String pointer
         self.starter: int = starter  # where does the match started in the current string
@@ -270,9 +274,9 @@ class Thread(object):
         self.prio_former: Optional['Thread'] = None
         self.prio_later: Optional['Thread'] = None
 
-        self.counter: Dict[InsCount, int] = defaultdict(int)
-        if counter:
-            self.counter.update(counter)
+        # self.counter: Dict[InsCount, int] = defaultdict(int)
+        # if counter:
+        #     self.counter.update(counter)
 
         self.id = next(thread_id_generator)
 
@@ -456,13 +460,17 @@ class Finder(BaseFinder):
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsForkHigher):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks, counter=th.counter)
+                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks,
+                                #  counter=th.counter
+                    )
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_higher(th1, than=th)
                     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsForkLower):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks, counter=th.counter)
+                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks,
+                                #  counter=th.counter
+                    )
                     th1 = put_thread(th1, pc=th1.pc, expel=True)
                     if th1:
                         move_thread_lower(th1, than=th)
@@ -486,24 +494,24 @@ class Finder(BaseFinder):
                     th1 = put_thread(th, pc=th.pc + 1, expel=True)
                     if th1:
                         move_thread_higher(th, than=nxt_lo)
-                elif isinstance(ins, InsCount):
-                    th.counter[ins] += 1
-                    put_thread(th, pc=th.pc + 1, expel=True)
-                elif isinstance(ins, InsCountGTE):
-                    # print(th.counter, ins, ins.counter)
-                    if th.counter.get(ins.counter, 0) >= ins.bounder:
-                        put_thread(th, pc=th.pc + 1, expel=True)
-                    else:
-                        del_thread(th)
-                elif isinstance(ins, InsCountLTE):
-                    # print(th.counter, ins, ins.counter)
-                    if th.counter.get(ins.counter, 0) <= ins.bounder:
-                        put_thread(th, pc=th.pc + 1, expel=True)
-                    else:
-                        del_thread(th)
-                elif isinstance(ins, InsCountClear):
-                    th.counter[ins.counter] = 0
-                    put_thread(th, pc=th.pc + 1, expel=True)
+                # elif isinstance(ins, InsCount):
+                #     th.counter[ins] += 1
+                #     put_thread(th, pc=th.pc + 1, expel=True)
+                # elif isinstance(ins, InsCountGTE):
+                #     # print(th.counter, ins, ins.counter)
+                #     if th.counter.get(ins.counter, 0) >= ins.bounder:
+                #         put_thread(th, pc=th.pc + 1, expel=True)
+                #     else:
+                #         del_thread(th)
+                # elif isinstance(ins, InsCountLTE):
+                #     # print(th.counter, ins, ins.counter)
+                #     if th.counter.get(ins.counter, 0) <= ins.bounder:
+                #         put_thread(th, pc=th.pc + 1, expel=True)
+                #     else:
+                #         del_thread(th)
+                # elif isinstance(ins, InsCountClear):
+                #     th.counter[ins.counter] = 0
+                #     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsAssert):
                     if ins.pred(char, index, text):
                         th1 = put_thread(th, pc=th.pc + 1, expel=True)
@@ -578,108 +586,58 @@ def _pany_to_program(pattern: PAny) -> Program:
 
 @_pattern_to_program.register(PRepeat)
 def _prepeat_to_program(pattern: PRepeat) -> Program:
-    fork: List[SubProgram]
-    jump: List[SubProgram]
+    # 0. preparation
+    fr, to = pattern._from, pattern._to
 
-    prog0 = _pattern_to_program(pattern.pattern)
+    if fr is None:
+        fr = 0
 
-    # ?
-    if (None, 1) == (pattern._from, pattern._to):
-        if pattern.greedy:
-            prog = Program([
-                InsForkLower(program=prog0, to_ending=True),
-                prog0
-            ])
-        else:
-            prog = Program([
-                InsForkHigher(program=prog0, to_ending=True),
-                prog0
-            ])
+    subprog = _pattern_to_program(pattern.pattern)
 
-    # +
-    elif (1, None) == (pattern._from, pattern._to):
-        if pattern.greedy:
-            prog = Program([
-                prog0,
-                InsForkHigher(program=prog0)
-            ])
-        else:
-            prog = Program([
-                prog0,
-                InsForkLower(program=prog0)
-            ])
-    
-    # *
-    elif (0, None) == (pattern._from, pattern._to):
-        ins_cls: Type[Instruction]
-        if pattern.greedy:
-            ins_cls = InsForkLower
-        else:
-            ins_cls = InsForkHigher
-        prog = Program([
-            # fork over
-            prog0,
-            # jump back
-        ])
-        fork = [ins_cls(program=prog, to_ending=True)]
-        prog.sub = fork + prog.sub
-        jump = [InsJump(program=prog)]
-        prog.sub = prog.sub + jump
-
-    # {x,}
-    elif pattern._to is None:
-        if pattern.greedy:
-            ins_cls = InsForkLower
-        else:
-            ins_cls = InsForkHigher
-        counter = InsCount()
-        prog = Program([
-            # fork over
-            prog0,
-            counter,
-            # jump back
-            # check lower bound
-            # counter clear
-        ])
-        prog.prepend(ins_cls(program=prog, to_ending=True))
-        prog.append(InsJump(program=prog))
-        count_checker = InsCountGTE(counter, pattern._from)
-        prog = Program([
-            prog,
-            count_checker,
-            InsCountClear(counter)
-        ])
-
-    # {x, y}
+    fork_cls: Type[Instruction]
+    if pattern.greedy:
+        fork_cls = InsForkLower
     else:
-        assert pattern._to is not None
-        if pattern.greedy:
-            ins_cls = InsForkLower
-        else:
-            ins_cls = InsForkHigher
-        counter = InsCount()
-        prog = Program([
+        fork_cls = InsForkHigher
+
+    # 1. 0-fr as prog0
+    prog0 = Program([subprog.copy() for i in range(fr)])
+
+    # 2. fr-to as prog1
+
+    # infinite loop
+    if to is None:
+        prog1 = Program([
             # fork over
-            # check upper bound
-            prog0,
-            counter,
+            subprog,
             # jump back
-            # check lower bound
-            # counter clear
         ])
+        prog1.prepend(fork_cls(program=prog1, to_ending=True))
+        prog1.append(InsJump(program=prog1))
 
-        prog.prepend(InsCountLTE(counter, pattern._to - 1))
-        prog.prepend(ins_cls(program=prog, to_ending=True))
-        prog.append(InsJump(program=prog))
+    # exact
+    elif to == fr:
+        prog1 = Program([])
+
+    elif to > fr:
+        prog1 = Program([
+            # fork over
+            subprog.copy(),
+        ])
+        prog1.prepend(fork_cls(program=prog1, to_ending=True))
+        for i in range(to - fr - 1):
+            prog1 = Program([
+                # fork over
+                subprog.copy(),
+                prog1,
+            ])
+            prog1.prepend(fork_cls(program=prog1, to_ending=True))
+
+    else:
+        raise ValueError
         
-        count_checker1 = InsCountGTE(counter, pattern._from)
-        prog = Program([
-            prog,
-            count_checker1,
-            InsCountClear(counter)
-        ])
-
-    return prog
+    # 3. combine the two
+    return Program([prog0, prog1])
 
 
 @_pattern_to_program.register(PAdjacent)
