@@ -127,6 +127,11 @@ class ExtractionTestCases(object):
         text = 'aaaab'
         self.case(P.n('a', 2, 3) + 'b', text, ['aaab'])
 
+    def test_overall5(self):
+        ptn = P.pattern('aaaaab') | P.pattern('aaa') | P.pattern('aac')
+        text = 'aaaaac'
+        self.case(ptn, text, ['aaa', 'aac'])
+
 
 class TestExtractionPlain(ExtractionTestCases):
     def case(self, pattern, text, expect_pt):

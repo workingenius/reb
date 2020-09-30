@@ -235,6 +235,8 @@ class Thread(object):
         self.prio_former: Optional['Thread'] = None
         self.prio_later: Optional['Thread'] = None
 
+        self.succeed_at: int = -1
+
         self.id = next(thread_id_generator)
 
     def to_ptnode(self, text: str) -> Optional[PTNode]:
@@ -394,18 +396,30 @@ class Finder(BaseFinder):
                 if isinstance(ins, InsStart):
                     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsSuccess):
+                    if th.succeed_at < 0:
+                        th.succeed_at = index
                     if nxt_hi.prio_later is nxt_lo:
                         # find a match, arrange it to be PTNodes, and re-init threads
                         node = th.to_ptnode(text)
                         assert node is not None
                         yield node
-                        thread_map = {}
-                        cur_hi.prio_later = cur_lo
-                        cur_lo.prio_former = cur_hi
-                        nxt_hi.prio_later = nxt_lo
-                        nxt_lo.prio_former = nxt_hi
-                        if th.starter != index:
-                            thread_for_new_char(index)
+                        del_thread(th)
+                        # clear all earlier started threads
+                        ct = th.succeed_at  # clear_till
+                        th1 = cur_hi.prio_later
+                        th2 = th1.prio_later
+                        while th1 is not cur_lo:
+                            if th1.starter < ct or th1.starter == th.starter:
+                                del_thread(th1)
+                            th1 = th2
+                            th2 = th2.prio_later
+                        th1 = nxt_hi.prio_later
+                        th2 = th1.prio_later
+                        while th1 is not nxt_lo:
+                            if th1.starter < ct or th1.starter == th.starter:
+                                del_thread(th1)
+                            th1 = th2
+                            th2 = th2.prio_later
                     else:
                         move_thread_higher(th, than=nxt_lo)
                 elif isinstance(ins, InsCompare):
