@@ -350,7 +350,7 @@ class Finder(BaseFinder):
             _move_thread_off(thread)
             thread_map[thread.pc] = None
 
-        def put_thread(thread: Thread, pc: int, expel: bool) -> Optional[Thread]:
+        def put_thread(thread: Thread, pc: int) -> Optional[Thread]:
             if thread_map.get(thread.pc) is thread:
                 thread_map.pop(thread.pc)
 
@@ -379,7 +379,7 @@ class Finder(BaseFinder):
             # for every new char, create a new thread
             # it should be the lowest priority in current linked list
             th = Thread(pc=0, sp=index, starter=index)
-            th1 = put_thread(th, pc=th.pc, expel=False)
+            th1 = put_thread(th, pc=th.pc)
             if th1:
                 move_thread_higher(th1, than=cur_lo)
 
@@ -404,7 +404,7 @@ class Finder(BaseFinder):
                 #     import pdb; pdb.set_trace()
 
                 if isinstance(ins, InsStart):
-                    put_thread(th, pc=th.pc + 1, expel=True)
+                    put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsSuccess):
                     if th.succeed_at < 0:
                         th.succeed_at = index
@@ -435,7 +435,7 @@ class Finder(BaseFinder):
                 elif isinstance(ins, InsCompare):
                     if ins.char == char:
                         # step on and put it to the lowest in next linked list
-                        th1 = put_thread(th, pc=th.pc + 1, expel=True)
+                        th1 = put_thread(th, pc=th.pc + 1)
                         if th1:
                             move_thread_higher(th, than=nxt_lo)
                             th.moved = True
@@ -443,39 +443,39 @@ class Finder(BaseFinder):
                         del_thread(th)
                 elif isinstance(ins, InsForkHigher):
                     th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
-                    th1 = put_thread(th1, pc=th1.pc, expel=True)
+                    th1 = put_thread(th1, pc=th1.pc)
                     if th1:
                         move_thread_higher(th1, than=th)
-                    put_thread(th, pc=th.pc + 1, expel=True)
+                    put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsForkLower):
                     th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
-                    th1 = put_thread(th1, pc=th1.pc, expel=True)
+                    th1 = put_thread(th1, pc=th1.pc)
                     if th1:
                         move_thread_lower(th1, than=th)
-                    put_thread(th, pc=th.pc + 1, expel=True)
+                    put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsJump):
-                    put_thread(th, pc=ins.to, expel=True)
+                    put_thread(th, pc=ins.to)
                 elif isinstance(ins, InsGroupStart):
                     th.marks.append(Mark(index=index, name=ins.group_id, is_open=True, depth=0))  # TODO depth
-                    put_thread(th, pc=th.pc + 1, expel=True)
+                    put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsGroupEnd):
                     th.marks.append(Mark(index=index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
-                    put_thread(th, pc=th.pc + 1, expel=True)
+                    put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsPredicate):
                     if ins.pred(char, index, text):
-                        th1 = put_thread(th, pc=th.pc + 1, expel=True)
+                        th1 = put_thread(th, pc=th.pc + 1)
                         if th1:
                             move_thread_higher(th, than=nxt_lo)
                             th.moved = True
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsAny):
-                    th1 = put_thread(th, pc=th.pc + 1, expel=True)
+                    th1 = put_thread(th, pc=th.pc + 1)
                     if th1:
                         move_thread_higher(th, than=nxt_lo)
                 elif isinstance(ins, InsAssert):
                     if ins.pred(char, index, text):
-                        th1 = put_thread(th, pc=th.pc + 1, expel=True)
+                        th1 = put_thread(th, pc=th.pc + 1)
                         if th1:
                             move_thread_higher(th, than=cur_lo)
                     else:
