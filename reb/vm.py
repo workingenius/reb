@@ -345,8 +345,6 @@ class Finder(BaseFinder):
             thread.prio_later.prio_former = thread
 
         def del_thread(thread: Thread) -> None:
-            # if thread.id == 241 or thread.id == 174:
-            #     import pdb; pdb.set_trace()
             _move_thread_off(thread)
             thread_map[thread.pc] = None
 
@@ -387,8 +385,6 @@ class Finder(BaseFinder):
             yield ''
 
         for index, char in enumerate(chain(iter(text), eof())):
-            # if char == '玄':
-            #     import pdb; pdb.set_trace()
             thread_for_new_char(index)
 
             # as long as the ready ll is not empty
@@ -399,9 +395,6 @@ class Finder(BaseFinder):
                 # pick the ready thread with highest prioity and run it
                 th = cur_hi.prio_later
                 ins = program[th.pc]
-
-                # if index == 16 and th.id == 241:
-                #     import pdb; pdb.set_trace()
 
                 if isinstance(ins, InsStart):
                     put_thread(th, pc=th.pc + 1)
