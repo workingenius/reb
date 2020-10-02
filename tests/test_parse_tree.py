@@ -33,3 +33,23 @@ def test_parse_tree2():
         PTNode(text, 0, 1),
         PTNode(text, 1, 2)
     ]
+
+
+def test_parse_tree3():
+    text = 'abcdef'
+
+    node = PTNode(text, 0, 5, children=[
+        PTNode(text, 0, 3, children=[
+            VirtualPTNode(text, 0, 2, children=[
+                PTNode(text, 0, 1),
+                PTNode(text, 1, 2),
+            ])
+        ]),
+    ])
+
+    assert node.children == [
+        PTNode(text, 0, 3, children=[
+            PTNode(text, 0, 1),
+            PTNode(text, 1, 2),
+        ]),
+    ]
