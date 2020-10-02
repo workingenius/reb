@@ -394,6 +394,7 @@ class Finder(BaseFinder):
 
                 # pick the ready thread with highest prioity and run it
                 th = cur_hi.prio_later
+                assert th is not None
                 ins = program[th.pc]
 
                 if isinstance(ins, InsStart):
@@ -410,15 +411,17 @@ class Finder(BaseFinder):
                         # clear all earlier started threads
                         ct = th.succeed_at  # clear_till
                         th1 = cur_hi.prio_later
+                        assert th1 is not None
                         th2 = th1.prio_later
-                        while th1 is not cur_lo:
+                        while th2 is not None:
                             if th1.starter < ct or th1.starter == th.starter:
                                 del_thread(th1)
                             th1 = th2
                             th2 = th2.prio_later
                         th1 = nxt_hi.prio_later
+                        assert th1 is not None
                         th2 = th1.prio_later
-                        while th1 is not nxt_lo:
+                        while th2 is not None:
                             if th1.starter < ct or th1.starter == th.starter:
                                 del_thread(th1)
                             th1 = th2
@@ -428,22 +431,19 @@ class Finder(BaseFinder):
                 elif isinstance(ins, InsCompare):
                     if ins.char == char:
                         # step on and put it to the lowest in next linked list
-                        th1 = put_thread(th, pc=th.pc + 1)
-                        if th1:
+                        if put_thread(th, pc=th.pc + 1):
                             move_thread_higher(th, than=nxt_lo)
                             th.moved = True
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsForkHigher):
                     th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
-                    th1 = put_thread(th1, pc=th1.pc)
-                    if th1:
+                    if put_thread(th1, pc=th1.pc):
                         move_thread_higher(th1, than=th)
                     put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsForkLower):
                     th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
-                    th1 = put_thread(th1, pc=th1.pc)
-                    if th1:
+                    if put_thread(th1, pc=th1.pc):
                         move_thread_lower(th1, than=th)
                     put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsJump):
@@ -456,20 +456,17 @@ class Finder(BaseFinder):
                     put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsPredicate):
                     if ins.pred(char, index, text):
-                        th1 = put_thread(th, pc=th.pc + 1)
-                        if th1:
+                        if put_thread(th, pc=th.pc + 1):
                             move_thread_higher(th, than=nxt_lo)
                             th.moved = True
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsAny):
-                    th1 = put_thread(th, pc=th.pc + 1)
-                    if th1:
+                    if put_thread(th, pc=th.pc + 1):
                         move_thread_higher(th, than=nxt_lo)
                 elif isinstance(ins, InsAssert):
                     if ins.pred(char, index, text):
-                        th1 = put_thread(th, pc=th.pc + 1)
-                        if th1:
+                        if put_thread(th, pc=th.pc + 1):
                             move_thread_higher(th, than=cur_lo)
                     else:
                         del_thread(th)
@@ -482,10 +479,11 @@ class Finder(BaseFinder):
             # swap cur list and next list,
             # and set all threads to "not moved"
             cur_hi, cur_lo, nxt_hi, nxt_lo = nxt_hi, nxt_lo, cur_hi, cur_lo
-            th = cur_hi.prio_later
-            while th is not cur_lo:
-                th.moved = False
-                th = th.prio_later
+            th3 = cur_hi.prio_later
+            while th3 is not cur_lo:
+                assert th3
+                th3.moved = False
+                th3 = th3.prio_later
 
 
 def compile_pattern(pattern: Pattern) -> Finder:
