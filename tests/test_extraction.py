@@ -132,6 +132,15 @@ class ExtractionTestCases(object):
         text = 'aaaaac'
         self.case(ptn, text, ['aaa', 'aac'])
 
+    def test_overall6(self):
+        ptn = (P.tag('ab', tag='A') + 'c' | P.tag(P.n(P.ic('abc'), exact=3), tag='B')) + 'd'
+        text = 'abcd'
+        self.case(ptn, text, [
+            PTNode(text, start=0, end=4, children=[
+                PTNode(text, start=0, end=2, tag='A')
+            ])
+        ])
+
 
 class TestExtractionPlain(ExtractionTestCases):
     def case(self, pattern, text, expect_pt):

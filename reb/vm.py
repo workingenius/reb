@@ -236,6 +236,7 @@ class Thread(object):
         self.prio_later: Optional['Thread'] = None
 
         self.succeed_at: int = -1
+        self.moved: bool = False
 
         self.id = next(thread_id_generator)
 
@@ -344,6 +345,8 @@ class Finder(BaseFinder):
             thread.prio_later.prio_former = thread
 
         def del_thread(thread: Thread) -> None:
+            # if thread.id == 241 or thread.id == 174:
+            #     import pdb; pdb.set_trace()
             _move_thread_off(thread)
             thread_map[thread.pc] = None
 
@@ -359,7 +362,8 @@ class Finder(BaseFinder):
                 if thread.starter > thread0.starter:
                     replace = False
                 elif thread.starter == thread0.starter:
-                    replace = expel
+                    if thread0.moved:
+                        replace = False
 
                 if not replace:
                     _move_thread_off(thread)
@@ -383,6 +387,8 @@ class Finder(BaseFinder):
             yield ''
 
         for index, char in enumerate(chain(iter(text), eof())):
+            # if char == '玄':
+            #     import pdb; pdb.set_trace()
             thread_for_new_char(index)
 
             # as long as the ready ll is not empty
@@ -393,6 +399,10 @@ class Finder(BaseFinder):
                 # pick the ready thread with highest prioity and run it
                 th = cur_hi.prio_later
                 ins = program[th.pc]
+
+                # if index == 16 and th.id == 241:
+                #     import pdb; pdb.set_trace()
+
                 if isinstance(ins, InsStart):
                     put_thread(th, pc=th.pc + 1, expel=True)
                 elif isinstance(ins, InsSuccess):
@@ -428,6 +438,7 @@ class Finder(BaseFinder):
                         th1 = put_thread(th, pc=th.pc + 1, expel=True)
                         if th1:
                             move_thread_higher(th, than=nxt_lo)
+                            th.moved = True
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsForkHigher):
@@ -455,6 +466,7 @@ class Finder(BaseFinder):
                         th1 = put_thread(th, pc=th.pc + 1, expel=True)
                         if th1:
                             move_thread_higher(th, than=nxt_lo)
+                            th.moved = True
                     else:
                         del_thread(th)
                 elif isinstance(ins, InsAny):
@@ -474,7 +486,13 @@ class Finder(BaseFinder):
             if DEBUG:
                 _print_state()
 
+            # swap cur list and next list,
+            # and set all threads to "not moved"
             cur_hi, cur_lo, nxt_hi, nxt_lo = nxt_hi, nxt_lo, cur_hi, cur_lo
+            th = cur_hi.prio_later
+            while th is not cur_lo:
+                th.moved = False
+                th = th.prio_later
 
 
 def compile_pattern(pattern: Pattern) -> Finder:
