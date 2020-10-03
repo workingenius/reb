@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name='reb',
-    version='0.0.3',
+    version='0.0.4',
     packages=find_packages(exclude=['tests']),
     author='ruqishang',
     author_email='workingenius@163.com',
