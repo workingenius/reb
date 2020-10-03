@@ -384,12 +384,12 @@ class Finder(BaseFinder):
             if th1:
                 move_thread_higher(th1, than=cur_lo)
 
-        def match_done(thread: Thread) -> PTNode:
+        def match_done(thread: Thread) -> Optional[PTNode]:
             # found a match, arrange it to be PTNodes, and re-init threads
             node = thread.to_ptnode(text)
             del_thread(thread)
             # clear all earlier started threads
-            ct = th.succeed_at  # clear_till
+            ct = thread.succeed_at  # clear_till
             _th1 = cur_hi.prio_later
             assert _th1 is not None
             _th2 = _th1.prio_later
@@ -410,6 +410,9 @@ class Finder(BaseFinder):
 
         def eof():
             yield ''
+
+        th: Optional[Thread]
+        ins: Instruction
 
         for index, char in enumerate(chain(iter(text), eof())):
             thread_for_new_char(index)
@@ -480,6 +483,7 @@ class Finder(BaseFinder):
                 th = thread_map[i]
                 if th is None:
                     continue
+                assert th is not None
                 th.moved = False
                 ins = program[th.pc]
                 if isinstance(ins, InsSuccess):
@@ -509,7 +513,9 @@ class Finder(BaseFinder):
         if th is not None:
             ins = program[th.pc]
             assert isinstance(ins, InsSuccess)
-            yield match_done(th)
+            node = match_done(th)
+            assert node is not None
+            yield node
 
 
 def compile_pattern(pattern: Pattern) -> Finder:
