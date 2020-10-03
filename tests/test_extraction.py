@@ -141,6 +141,13 @@ class ExtractionTestCases(object):
             ])
         ])
 
+    def test_overall7(self):
+        ptn = P.n01('a') \
+                + P.n(P.ic('ab'), exact=2) \
+                + P.n01(P.n(P.ic('ab'), exact=2)) \
+                + 'b'
+        self.case(ptn, 'aaaab', ['aaaab'])
+
 
 class TestExtractionPlain(ExtractionTestCases):
     def case(self, pattern, text, expect_pt):
