@@ -1,6 +1,15 @@
 reb's CHANGELOG
 ================
 
+0.0.4
+-----
+*(October 3rh, 2020)*
+
++ Add a new match engine, implemented by re virtual machine in pure python
++ Add a new option to `reb` command to select match engine
++ Fix bug:
+  - `PTNode.children` should not return all descendants
+
 0.0.3
 -----
 *(September 4th, 2020)*
