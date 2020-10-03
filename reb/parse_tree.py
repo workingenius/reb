@@ -101,8 +101,9 @@ def iter_node_children(n: PTNode):
         if not isinstance(c, VirtualPTNode):
             if c:
                 yield c
-        for cc in iter_node_children(c):
-            yield cc
+        else:
+            for cc in iter_node_children(c):
+                yield cc
 
 
 def show_tree(tree: PTNode):
