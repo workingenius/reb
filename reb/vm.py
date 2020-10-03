@@ -278,7 +278,7 @@ class Finder(BaseFinder):
         program = self.program
 
         # mapping threads pc to threads
-        thread_map: Dict[int, Optional[Thread]] = {}
+        thread_map: List[Optional[Thread]] = [None] * len(program)
 
         # current thread linked list
         cur_hi = Thread(pc=-1, sp=-1, starter=-1)  # helper node with highest priority
@@ -295,7 +295,7 @@ class Finder(BaseFinder):
         def _print_state():
             for i in range(len(self.program)):
                 line = '{}.\t{}'.format(i, str(self.program[i]))
-                if thread_map.get(i):
+                if thread_map[i]:
                     line += '\t<- {}'.format(str(thread_map[i]))
                 print(line)
             
@@ -348,12 +348,13 @@ class Finder(BaseFinder):
             _move_thread_off(thread)
             thread_map[thread.pc] = None
 
-        def put_thread(thread: Thread, pc: int) -> Optional[Thread]:
-            if thread_map.get(thread.pc) is thread:
-                thread_map.pop(thread.pc)
+        def put_thread(thread: Thread, pc: int, expel: bool = True) -> Optional[Thread]:
+            assert thread is not None
+            if thread_map[thread.pc] is thread:
+                thread_map[thread.pc] = None
 
             to = pc
-            thread0 = thread_map.get(to)
+            thread0 = thread_map[to]
             if thread0:
                 # Should thread replace original thread0 or not
                 replace = True
@@ -362,6 +363,8 @@ class Finder(BaseFinder):
                 elif thread.starter == thread0.starter:
                     if thread0.moved:
                         replace = False
+                    else:
+                        replace = expel
 
                 if not replace:
                     _move_thread_off(thread)
@@ -380,6 +383,30 @@ class Finder(BaseFinder):
             th1 = put_thread(th, pc=th.pc)
             if th1:
                 move_thread_higher(th1, than=cur_lo)
+
+        def match_done(thread: Thread) -> PTNode:
+            # found a match, arrange it to be PTNodes, and re-init threads
+            node = thread.to_ptnode(text)
+            del_thread(thread)
+            # clear all earlier started threads
+            ct = th.succeed_at  # clear_till
+            _th1 = cur_hi.prio_later
+            assert _th1 is not None
+            _th2 = _th1.prio_later
+            while _th2 is not None:
+                if _th1.starter < ct or _th1.starter == thread.starter:
+                    del_thread(_th1)
+                _th1 = _th2
+                _th2 = _th2.prio_later
+            _th1 = nxt_hi.prio_later
+            assert _th1 is not None
+            _th2 = _th1.prio_later
+            while _th2 is not None:
+                if _th1.starter < ct or _th1.starter == thread.starter:
+                    del_thread(_th1)
+                _th1 = _th2
+                _th2 = _th2.prio_later
+            return node
 
         def eof():
             yield ''
@@ -403,39 +430,14 @@ class Finder(BaseFinder):
                     if th.succeed_at < 0:
                         th.succeed_at = index
                     if nxt_hi.prio_later is nxt_lo:
-                        # find a match, arrange it to be PTNodes, and re-init threads
-                        node = th.to_ptnode(text)
+                        node = match_done(th)
                         assert node is not None
                         yield node
-                        del_thread(th)
-                        # clear all earlier started threads
-                        ct = th.succeed_at  # clear_till
-                        th1 = cur_hi.prio_later
-                        assert th1 is not None
-                        th2 = th1.prio_later
-                        while th2 is not None:
-                            if th1.starter < ct or th1.starter == th.starter:
-                                del_thread(th1)
-                            th1 = th2
-                            th2 = th2.prio_later
-                        th1 = nxt_hi.prio_later
-                        assert th1 is not None
-                        th2 = th1.prio_later
-                        while th2 is not None:
-                            if th1.starter < ct or th1.starter == th.starter:
-                                del_thread(th1)
-                            th1 = th2
-                            th2 = th2.prio_later
                     else:
                         move_thread_higher(th, than=nxt_lo)
                 elif isinstance(ins, InsCompare):
-                    if ins.char == char:
-                        # step on and put it to the lowest in next linked list
-                        if put_thread(th, pc=th.pc + 1):
-                            move_thread_higher(th, than=nxt_lo)
-                            th.moved = True
-                    else:
-                        del_thread(th)
+                    move_thread_higher(th, than=nxt_lo)
+                    th.moved = True
                 elif isinstance(ins, InsForkHigher):
                     th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     if put_thread(th1, pc=th1.pc):
@@ -455,15 +457,11 @@ class Finder(BaseFinder):
                     th.marks.append(Mark(index=index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
                     put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsPredicate):
-                    if ins.pred(char, index, text):
-                        if put_thread(th, pc=th.pc + 1):
-                            move_thread_higher(th, than=nxt_lo)
-                            th.moved = True
-                    else:
-                        del_thread(th)
+                    move_thread_higher(th, than=nxt_lo)
+                    th.moved = True
                 elif isinstance(ins, InsAny):
-                    if put_thread(th, pc=th.pc + 1):
-                        move_thread_higher(th, than=nxt_lo)
+                    move_thread_higher(th, than=nxt_lo)
+                    th.moved = True
                 elif isinstance(ins, InsAssert):
                     if ins.pred(char, index, text):
                         if put_thread(th, pc=th.pc + 1):
@@ -476,14 +474,42 @@ class Finder(BaseFinder):
             if DEBUG:
                 _print_state()
 
-            # swap cur list and next list,
-            # and set all threads to "not moved"
+            # for each alive thread, step on
+            # and reset moved flag to "not moved"
+            for i in range(len(thread_map)-1, -1, -1):
+                th = thread_map[i]
+                if th is None:
+                    continue
+                th.moved = False
+                ins = program[th.pc]
+                if isinstance(ins, InsSuccess):
+                    pass
+                elif isinstance(ins, InsCompare):
+                    if ins.char == char:
+                        put_thread(th, pc=th.pc + 1, expel=False)
+                    else:
+                        del_thread(th)
+                elif isinstance(ins, InsPredicate):
+                    if ins.pred(char, index, text):
+                        put_thread(th, pc=th.pc + 1, expel=False)
+                    else:
+                        del_thread(th)
+                elif isinstance(ins, InsAny):
+                    put_thread(th, pc=th.pc + 1, expel=False)
+                else:
+                    raise TypeError
+
+            if DEBUG:
+                _print_state()
+
+            # swap cur list and next list
             cur_hi, cur_lo, nxt_hi, nxt_lo = nxt_hi, nxt_lo, cur_hi, cur_lo
-            th3 = cur_hi.prio_later
-            while th3 is not cur_lo:
-                assert th3
-                th3.moved = False
-                th3 = th3.prio_later
+
+        th = thread_map[-1]
+        if th is not None:
+            ins = program[th.pc]
+            assert isinstance(ins, InsSuccess)
+            yield match_done(th)
 
 
 def compile_pattern(pattern: Pattern) -> Finder:
