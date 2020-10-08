@@ -1,58 +1,209 @@
 # reb -- Regular Expression Beautiful
 
-reb 的目标是让信息抽取任务的正则更容易编写、维护，从而整个团队能写出规模更大的信息抽取模式。
+在用模式匹配进行文本信息抽取时，为了使其过程更简便，reb 尝试在一下几点改进传统正则表达式：
 
-和标准库里的 re 相比，reb 在这几方面作出改进: 
+* 可维护性
+* 可重用性
+* 可读性
 
-+ 可维护性 -- 用例子来辅助正则的编写和维护
-+ 可重用性 -- 定义一次、多次使用
-+ 易用性 -- 一次匹配提出多组同名片段
+为此，引入如下几个机制
 
----
+* 用 pythonic 的风格写正则规则
+* 允许指定用例，让读正则、写正则变得更简单
+* 返回匹配出的整个解析树，而不是 "Match Object"
 
-## 自然语言中的模式
+## 一个简单的例子
 
-自然语言中的模式是相对松散、不严格的；是基于数据集总结出来的，而不像那样 ip地址、url 有严格定义的标准格式。
+用 reb 写正则规则的风格更可读，且能够使模式间互相组合。接下来拿解析、提取 url 来做说明。
 
-为了涵盖多种表达方式，一个信息抽取任务考虑到五六种子模式是比较常见的。
+根据 [rfc3986](https://tools.ietf.org/html/rfc3986), 一个能匹配 url 的正则表达式：
 
-## 引入例子
+```re
+^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?
+```
 
-既然有五六种子模式，回看每个正则式时常常会很困惑，忘记了当初为什么要补充这个这个子模式。
+用 reb 风格可以写作：
 
-正则不太直观，一眼看上去，不能想到哪些能匹配。
+``` python
+from reb import P  # "P" 意为 "Pattern"
 
-给复杂的正则式配上若干例子，有助于理解当初这个模式是怎么总结出来的。修改、维护也就更容易了。
+scheme = P.n(P.nic(':/?#'), 1) + ':'  # "nic" 意为 "Not In Chars"
+                                      # "n" 意为 "repeat for N times"
 
-## 用例子检测模式冲突
+hier = P.n01('//' + P.n(P.nic('/?#'))) + P.n(P.nic('?#'))  # "n01" 出现 1 次或不出现
 
-五六种子模式带来的另一个维护上的挑战是，模式之间有冲突。
+query = P.n01('?' + P.n(P.nic('#')))
 
-假如代码库里现有的五个模式有 bad case，增加一个覆盖该 bad case 的新模式未必提升指标。因为以前匹配良好的情况遇到新模式反而出错，整体上拉低指标。
+fragment = P.n01('#' + P.n(P.ANYCHAR))
 
-这种情况，就是新模式和现有模式发生了冲突。
+url = P.tag(P.n01(scheme), tag='scheme') \
 
-糟糕的是，有些时候即使冲突发生，编写模式的人也未必知道。
+        + P.tag(hier, tag='hierachy') \
+        + P.tag(query, tag='query') \
+        + P.tag(fragment, tag='fragment')
+```
 
-通过引入例子，可以降低冲突发生的可能性。至少冲突发生时我们可以知道。
+一下截图显示了匹配情况，用命令行入口 `reb` 即可：
 
-如果一个例子在单个子模式上的匹配结果和整体上不一样，说明有某些子模式互相冲突了。
+![reb show how url matches](./images/url.png)
 
-维护模式的人可以相应调整这些模式，调整这些例子，化解这些冲突。
+正如所见，模式中打上不同标签的部分在文中染上相应颜色，也就是说，scheme，hierachy，query，fragment 这些部分均已被提取出来。
 
-## 可以共用的模式
+## 指定用例
 
-模式复杂了之后，有一个重要的诉求 -- 重用模式。
+读正则时，相当于用肉眼解析正则，再回推它能够匹配哪些文本。上文看到，分割、命名能够让正则可读性更好，然而另一个办法，可以给模式添加一些用例：
 
-一个完整的匹配时间日期的正则式需要数十个字符。假设几个子模式中都出现时间日期，那么每次都必须重复这数十个字符。整个正则式会变得特别长，很难读。
+``` python
+from reb import P
 
-理想的方式是，匹配日期的模式只写一次；用到它时，只要说明“这里要匹配一个日期”，模式会表达得简洁明了。
+scheme = P.example(
+    P.n(P.nic(':/?#'), 1) + ':',
+        'http:',
+        'https:'
+)
 
-## 多个同名片段
+hier = P.example(
+    P.n01('//' + P.n(P.nic('/?#'))) + P.n(P.nic('?#')),
+        '//google.com',
+        'localhost',
+        '127.0.0.1:8080',
+)
 
-re 支持给一个组命名，可以通过组名把该组对应的片段提取出来。这是一个非常有用的功能，比如匹配了日期之后，需要知道哪些字符对应年、哪些对应月。
+query = P.example(
+    P.n01('?' + P.n(P.nic('#'))),
+        '',
+        '?a=1',
+        '?a=1&b=2',
+)
 
-但这个功能有一个限制，表达式中不能出现同名的组。假设匹配了一句话里面有多个“地点”，做不到把所有的“地点”片段都拿出来。
+fragment = P.example(
+    P.n01('#' + P.n(P.ANYCHAR)),
+        '',
+        '#head'
+)
 
-reb 尝试在以上方面做出改进。
+url = P.tag(P.n01(scheme), tag='scheme') \
 
+        + P.tag(hier, tag='hierachy') \
+        + P.tag(query, tag='query') \
+        + P.tag(fragment, tag='fragment')
+```
+
+在上面代码中，url 的每个部分都配有用例。
+
+加用例并不影响模式的匹配和提取过程。区别在于，当模式声明时（模式对象创建时），会做一次检验，确保配有用例的模式一定出现在每个用例当中。
+如果精心设置一些用例，读代码的人（可能是其他开发者，也可能是原作者回头读代码）看到这些用例就能了解到一些信息：当时这条规则是从哪种/哪个文本中总结出的，进而明白，这条模式的意图是什么。
+用例机制允许写模式时把一些思考过程同时写下来，使读的时候有迹可循。
+或者说，规则的作者可以传达给读者一些额外的信息，确保双方面对这段代码时理解一致。
+所以说，**用例的作用类比代码注释**。然而“明确的比不明确的要好”。
+
+在一些自然语言的信息提取场景中，正则的用途广泛。随着预料变得复杂，正则模式会加到很长，即不好读，也不好懂，更不用说修改了。
+就算模式被分割成小片段，依然不好改、不好维护。其中一个原因是，改动之后原本可以匹配的没匹配，此时没有任何提示。所以说，另一方面，**用例的作用类比测试**。当不小心把模式改错了，某个用例就会失败，这个模式定义会失败。迫使开发者在最开始发现错误并做出处理。
+
+## 允许同名的组出现多次
+
+在 url 里，若干查询之间可以用 "&" 符号分割开，就像传入多个命名参数一样。
+如果想把这若干个参数名字和值都匹配出来，怎么写模式呢？可能会想到 re 可以这样写：
+
+```re
+\?(?P<query>[^#&]*)(&(?P<query>[^#&]*))*
+```
+
+其实这样写是不行的，会抛出异常，说 query 这个组定义了不止一次。
+
+```text
+sre_constants.error: redefinition of group name 'query' as group 3; was group 1 at position 25
+```
+
+但在做信息抽取时，这个需求很普遍。只是想给两个不同的片段打上同一个标签，不一定必须出现一次。在 reb 里，用 tag 就可以做到同等的效果：
+
+``` python
+from reb import P
+
+scheme = P.example(
+    P.n(P.nic(':/?#'), 1) + ':',
+        'http:',
+        'https:'
+)
+
+hier = P.example(
+    P.n01('//' + P.n(P.nic('/?#'))) + P.n(P.nic('?#')),
+        '//google.com',
+        'localhost',
+        '127.0.0.1:8080',
+)
+
+a_query = P.tag(P.n(P.nic('#&')), tag='query')
+
+query = P.example(
+    P.n01('?' + P.n(a_query + '&') + a_query),
+        '',
+        '?a=1',
+        '?a=1&b=2',
+)
+
+fragment = P.example(
+    P.n01('#' + P.n(P.ANYCHAR)),
+        '',
+        '#head'
+)
+
+url = P.tag(P.n01(scheme), tag='scheme') \
+
+        + P.tag(hier, tag='hierachy') \
+        + query \
+        + P.tag(fragment, tag='fragment') 
+
+```
+
+从截图中绿色的文字可以知道，"a\_query" 这个模式均被提取并在原文中打上标签。
+
+![Match more than one groups with same tag](./images/url3.png)
+
+## 程序接口
+
+### Pattern 原语 和 Pattern 对象
+
+`reb.P` 是构建模式时用户需要用到的唯一入口。
+
+此处的约定是，原语都用小写字母意味着它是一个模式工厂，原语都用大写字母意为着它已经是一个模式。
+
+| 原语       | 表意               | re 当中的同名功能            |
+|-----------|--------------------|----------------------------|
+| pattern   |                    | literals                   |
+| ic        | In Chars           | []                         |
+| nic       | Not In Chars       | \[^\]                      |
+| tag       |                    | just like group            |
+| n         | repeat for N times | \* or \{n, m\}             |
+| n01       | repeat for 0 or 1 time | \+                     |
+| any       |                    | \|                         |
+| onceeach  |                    |                            |
+| example   |                    |                            |
+| ANYCHAR   |                    | \.                         |
+| STARTING  |                    | ^                          |
+| ENDING    |                    | \$                         |
+| NEWLINE   |                    | \\n                        |
+
+`Pattern.extract` 方法是 pattern 对象做抽取的入口方法，它返回一系列 `PTNode` 对象.
+
+```python
+class Pattern:
+    def extract(self, text: str) -> List[PTNode]:
+        """Extract info from text by the pattern, and return every match, forming a parse tree"""
+```
+
+注意，*目前为止的版本不兼容 posix 正则标准，也没有和 python 自带的 re 接口保持一致*
+
+### 解析树节点 PTNode
+
+#### class PTNode
+
+* `PTNode.text` 原始文本
+* `PTNode.string` 同 `PTNode.text`
+* `PTNode.content` 该节点对应的匹配成功的片段
+* `PTNode.start()` 匹配片段的开始下标
+* `PTNode.end()` 匹配片段的结束下标
+* `PTNode.children` 子节点
+* `PTNode.fetch(tag)` 一个迭代器，提取出所有指定标签的匹配片段
+* `PTNode.pp()` pretty print
+* `PTNode.show()` 打印解析树细节

@@ -1,3 +1,5 @@
+[中文 README](./README.zh.md)
+
 # reb -- Regular Expression Beautiful
 
 To make **infomation extraction with patterns** easier, reb tries to improve traditional re in some ways:
