@@ -6,7 +6,7 @@ readme = (projdir / 'README.md').read_text()
 
 setup(
     name='reb',
-    version='0.0.4',
+    version='0.1.0',
     packages=find_packages(exclude=['tests']),
     author='ruqishang',
     author_email='workingenius@163.com',
