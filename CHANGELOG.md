@@ -1,6 +1,14 @@
 reb's CHANGELOG
 ================
 
+0.1.0
+-----
+*(October 9th, 2020)*
+
++ A better README
++ Fix bug:
+  - match error about greediness of plain engine
+
 0.0.4
 -----
 *(October 3rh, 2020)*

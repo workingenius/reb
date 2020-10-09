@@ -148,6 +148,18 @@ class ExtractionTestCases(object):
                 + 'b'
         self.case(ptn, 'aaaab', ['aaaab'])
 
+    def test_overall8_1(self):
+        self.case(P.n01('a' + P.n('b')), 'abbb', ['abbb'])
+
+    def test_overall8_2(self):
+        self.case(P.n01('a' + P.n('b', greedy=False)), 'abbb', ['a'])
+
+    def test_overall8_3(self):
+        self.case(P.n01('a' + P.n('b'), greedy=False), 'abbb', [])
+
+    def test_overall8_4(self):
+        self.case(P.n01('a' + P.n('b', greedy=False), greedy=False), 'abbb', [])
+
 
 class TestExtractionPlain(ExtractionTestCases):
     def case(self, pattern, text, expect_pt):

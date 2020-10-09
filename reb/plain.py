@@ -32,7 +32,7 @@ class FinderPlain(Finder):
     def __init__(self, pattern: Pattern):
         self.pattern: Pattern = pattern
 
-    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+    def match(self, text: str, start: int = 0, reverse: bool = True) -> Iterator[PTNode]:
         """Match pattern from <text>, start at <start>, iterate over all possible matches as PTNode"""
         raise NotImplementedError
 
@@ -43,7 +43,7 @@ class FinderPlain(Finder):
 
         while cur <= ll:
             m = False
-            for pt in self.match(text, cur):
+            for pt in self.match(text, cur, reverse=False):
                 m = True
                 yield pt
                 if pt.index1 > cur:
@@ -61,14 +61,14 @@ class FText(FinderPlain):
         super().__init__(pattern)
         self.text = pattern.text
 
-    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+    def match(self, text: str, start: int = 0, reverse: bool = True) -> Iterator[PTNode]:
         if text[start: start + len(self.text)] == self.text:
             yield PTNode(text, start=start, end=start + len(self.text))
 
 
 @_compile_pattern.register(PAnyChar)
 class FAnyChar(FinderPlain):
-    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+    def match(self, text: str, start: int = 0, reverse: bool = True) -> Iterator[PTNode]:
         if start < len(text):
             yield PTNode(text, start=start, end=start + 1)
 
@@ -80,8 +80,8 @@ class FTag(FinderPlain):
         self.finder = _compile_pattern(pattern.pattern)
         self.tag = pattern.tag
 
-    def match(self, text, start=0) -> Iterator[PTNode]:
-        for pt in self.finder.match(text, start):
+    def match(self, text, start=0, reverse=True) -> Iterator[PTNode]:
+        for pt in self.finder.match(text, start, reverse=reverse):
             pt.tag = self.tag
             yield pt
 
@@ -92,7 +92,7 @@ class FNotInChars(FinderPlain):
         super().__init__(pattern)
         self.chars = pattern.chars
 
-    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+    def match(self, text: str, start: int = 0, reverse: bool = True) -> Iterator[PTNode]:
         if start >= len(text):
             return
         elif text[start] not in self.chars:
@@ -105,7 +105,7 @@ class FInChars(FinderPlain):
         super().__init__(pattern)
         self.chars = pattern.chars
 
-    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+    def match(self, text: str, start: int = 0, reverse: bool = True) -> Iterator[PTNode]:
         if start >= len(text):
             return
         elif text[start] in self.chars:
@@ -118,9 +118,9 @@ class FAny(FinderPlain):
         super().__init__(pattern)
         self.finders = [_compile_pattern(p) for p in pattern.patterns]
 
-    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+    def match(self, text: str, start: int = 0, reverse: bool = True) -> Iterator[PTNode]:
         for finder in self.finders:
-            for pt in finder.match(text, start):
+            for pt in finder.match(text, start, reverse=reverse):
                 yield pt
 
 
@@ -132,8 +132,7 @@ class FRepeat(FinderPlain):
         self._from = pattern._from
         self._to = pattern._to
         self.greedy = pattern.greedy
-        sub = self._prepare(pattern, self.finder, self._from, self._to)
-        self.sub = (FReversed(sub) if self.greedy else sub)
+        self.sub = self._prepare(pattern, self.finder, self._from, self._to)
 
     def _prepare(self, pattern: Pattern, finder: FinderPlain, _from: int, _to: int = None) -> FinderPlain:
         tail = None
@@ -146,9 +145,21 @@ class FRepeat(FinderPlain):
             sub = sub + [tail]
         return FAdjacent(pattern, sub)
 
-    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
-        for pt in self.sub.match(text, start):
-            yield pt
+    @staticmethod
+    def reversed(it):
+        buffer = []
+        buffer.extend(it)
+        return reversed(buffer)
+
+    def match(self, text: str, start: int = 0, reverse: bool = True) -> Iterator[PTNode]:
+        if self.greedy and reverse:
+            return self.sub.match(text, start, reverse=reverse)
+        elif not self.greedy and not reverse:
+            return self.sub.match(text, start, reverse=reverse)
+        elif self.greedy and not reverse:
+            return self.reversed(self.sub.match(text, start, reverse=not reverse))
+        else:
+            return self.reversed(self.sub.match(text, start, reverse=not reverse))
 
 
 @_compile_pattern.register(PAdjacent)
@@ -161,10 +172,10 @@ class FAdjacent(FinderPlain):
         super().__init__(pattern)
         self.finders: List[FinderPlain] = finders
 
-    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+    def match(self, text: str, start: int = 0, reverse: bool = True) -> Iterator[PTNode]:
         idx_ptn = 0
         idx_pos = start
-        mtc_stk: List[Iterator[PTNode]] = [self.finders[idx_ptn].match(text, idx_pos)]
+        mtc_stk: List[Iterator[PTNode]] = [self.finders[idx_ptn].match(text, idx_pos, reverse=reverse)]
         res_stk: List[Optional[PTNode]] = [None]
 
         while True:
@@ -184,7 +195,7 @@ class FAdjacent(FinderPlain):
                 idx_ptn += 1
                 if idx_ptn < len(self.finders):
                     idx_pos = res_nxt.index1
-                    mtc_stk.append(self.finders[idx_ptn].match(text, idx_pos))
+                    mtc_stk.append(self.finders[idx_ptn].match(text, idx_pos, reverse=reverse))
                     res_stk.append(None)
                 else:
                     yield PTNode.lead(res_stk)  # type: ignore
@@ -200,28 +211,16 @@ def compile_pexample(pattern: PExample):
 
 @_compile_pattern.register(PStarting)
 class FStarting(FinderPlain):
-    def match(self, text, start=0):
+    def match(self, text, start=0, reverse=True):
         if start == 0:
             yield PTNode(text, start=start, end=start)
 
 
 @_compile_pattern.register(PEnding)
 class FEnding(FinderPlain):
-    def match(self, text, start=0):
+    def match(self, text, start=0, reverse=True):
         if start == len(text):
             yield PTNode(text, start=start, end=start)
-
-
-class FReversed(FinderPlain):
-    def __init__(self, finder: FinderPlain):
-        self.finder: FinderPlain = finder
-
-    def match(self, text, start=0):
-        pts = []
-        for pt in self.finder.match(text, start):
-            pts.append(pt)
-        for pt in reversed(pts):
-            yield pt
 
 
 class FRepeat0n(FinderPlain):
@@ -229,7 +228,7 @@ class FRepeat0n(FinderPlain):
         self.finder: FinderPlain = finder
         self._to: Optional[int] = _to
 
-    def match(self, text: str, start: int = 0) -> Iterator[PTNode]:
+    def match(self, text: str, start: int = 0, reverse: bool = True) -> Iterator[PTNode]:
         if self._to is not None and (self._to <= 0):
             return
         # Node List NeXT
@@ -241,7 +240,7 @@ class FRepeat0n(FinderPlain):
             nl_pre = nl_que.pop(0)
             if self._to is not None and (len(nl_pre) - 1 >= self._to):
                 continue
-            for n2 in self.finder.match(text, nl_pre[-1].index1):
+            for n2 in self.finder.match(text, nl_pre[-1].index1, reverse=reverse):
                 if not n2:
                     # repeat expect it's sub pattern to proceed
                     continue
