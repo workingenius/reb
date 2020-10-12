@@ -519,52 +519,52 @@ class Finder(BaseFinder):
 
 
 def compile_pattern(pattern: Pattern) -> Finder:
-    return Finder(_pattern_to_program(pattern).dump())
+    return Finder(pattern_to_program(pattern).dump())
 
 
 @singledispatch
-def _pattern_to_program(pattern: Pattern) -> Program:
+def pattern_to_program(pattern: Pattern) -> Program:
     raise TypeError('Pattern {} can\'t compiled to vm instructions'.format(pattern.__class__))
 
 
-@_pattern_to_program.register(PText)
+@pattern_to_program.register(PText)
 def _ptext_to_program(pattern: PText) -> Program:
     assert len(pattern.text) > 0
     return Program([InsCompare(c) for c in pattern.text])
 
 
-@_pattern_to_program.register(PAnyChar)
+@pattern_to_program.register(PAnyChar)
 def _panychar_to_program(pattern: PAny) -> Program:
     return Program([InsAny()])
 
 
-@_pattern_to_program.register(PTag)
+@pattern_to_program.register(PTag)
 def _ptag_to_program(pattern: PTag) -> Program:
     return Program([
         InsGroupStart(group_id=pattern.tag),
-        _pattern_to_program(pattern.pattern),
+        pattern_to_program(pattern.pattern),
         InsGroupEnd(group_id=pattern.tag),
     ])
 
 
-@_pattern_to_program.register(PInChars)
+@pattern_to_program.register(PInChars)
 def _pinchars_to_program(pattern: PInChars) -> Program:
     return Program([InsPredicate((lambda c, i, t: c in pattern.chars))])
 
 
-@_pattern_to_program.register(PNotInChars)
+@pattern_to_program.register(PNotInChars)
 def _pnotinchars_to_program(pattern: PNotInChars) -> Program:
     return Program([InsPredicate((lambda c, i, t: c not in pattern.chars))])
 
 
-@_pattern_to_program.register(PAny)
+@pattern_to_program.register(PAny)
 def _pany_to_program(pattern: PAny) -> Program:
     assert len(pattern.patterns) > 0
     if len(pattern.patterns) == 1:
-        return _pattern_to_program(pattern.patterns[0])
+        return pattern_to_program(pattern.patterns[0])
     else:
-        prog0 = _pattern_to_program(pattern.patterns[0])
-        prog1 = _pattern_to_program(PAny(pattern.patterns[1:]))
+        prog0 = pattern_to_program(pattern.patterns[0])
+        prog1 = pattern_to_program(PAny(pattern.patterns[1:]))
 
         return Program([
             InsForkLower(program=prog1),
@@ -574,7 +574,7 @@ def _pany_to_program(pattern: PAny) -> Program:
         ])
 
 
-@_pattern_to_program.register(PRepeat)
+@pattern_to_program.register(PRepeat)
 def _prepeat_to_program(pattern: PRepeat) -> Program:
     # 0. preparation
     fr, to = pattern._from, pattern._to
@@ -582,7 +582,7 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
     if fr is None:
         fr = 0
 
-    subprog = _pattern_to_program(pattern.pattern)
+    subprog = pattern_to_program(pattern.pattern)
 
     fork_cls: Type[Instruction]
     if pattern.greedy:
@@ -630,21 +630,21 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
     return Program([prog0, prog1])
 
 
-@_pattern_to_program.register(PAdjacent)
+@pattern_to_program.register(PAdjacent)
 def _padjacent_to_program(pattern: PAdjacent) -> Program:
-    return Program([_pattern_to_program(p) for p in pattern.patterns])
+    return Program([pattern_to_program(p) for p in pattern.patterns])
 
 
-@_pattern_to_program.register(PExample)
+@pattern_to_program.register(PExample)
 def _pexample_to_program(pattern: PExample) -> Program:
-    return _pattern_to_program(pattern.pattern)
+    return pattern_to_program(pattern.pattern)
 
 
-@_pattern_to_program.register(PStarting)
+@pattern_to_program.register(PStarting)
 def _pstarting_to_program(pattern: PStarting) -> Program:
     return Program([InsAssert(lambda c, i, t: i == 0)])
 
 
-@_pattern_to_program.register(PEnding)
+@pattern_to_program.register(PEnding)
 def _pending_to_program(pattern: PEnding) -> Program:
     return Program([InsAssert(lambda c, i, t: i == len(t))])
