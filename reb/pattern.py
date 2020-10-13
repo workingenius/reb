@@ -60,6 +60,9 @@ class Pattern(object):
             elif engine == 'vm':
                 from .vm import compile_pattern as vm
                 compile_pattern = vm
+            elif engine == 'vm2':
+                from .vm2 import compile_pattern as vm2
+                compile_pattern = vm2
             else:
                 raise ValueError('Invalid Engine')
             finder = compile_pattern(self)

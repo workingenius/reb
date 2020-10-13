@@ -1,5 +1,6 @@
 from pathlib import Path
 from setuptools import setup, find_packages
+from Cython.Build import cythonize
 
 projdir = Path(__file__).parent
 readme = (projdir / 'README.md').read_text()
@@ -20,5 +21,6 @@ setup(
         'console_scripts': ['reb=reb.cli:main']
     },
     long_description=readme,
-    long_description_content_type='text/markdown'
+    long_description_content_type='text/markdown',
+    ext_modules=cythonize("reb/vm2.pyx")
 )

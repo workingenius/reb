@@ -11,7 +11,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('-p', '--pattern', help='import path of the pattern object', required=True)
     ap.add_argument('-i', '--input', help='file to extract info', type=Path, required=True)
-    ap.add_argument('-e', '--engine', help='which engine to use', default='plain', choices=['plain', 'vm'])
+    ap.add_argument('-e', '--engine', help='which engine to use', default='plain', choices=['plain', 'vm', 'vm2'])
     args = ap.parse_args()
     
     input_file_path: Path
