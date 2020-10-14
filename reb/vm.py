@@ -216,12 +216,7 @@ class Mark(object):
         )
 
 
-def _thread_id_generator():
-    i = 0
-    while True:
-        i += 1
-        yield i
-thread_id_generator = _thread_id_generator()
+_thread_id = [1]
 
 
 class Thread(object):
@@ -238,7 +233,8 @@ class Thread(object):
         self.succeed_at: int = -1
         self.moved: bool = False
 
-        self.id = next(thread_id_generator)
+        self.id = _thread_id[0]
+        _thread_id[0] += 1
 
     def to_ptnode(self, text: str) -> Optional[PTNode]:
         if not self.marks:
@@ -275,7 +271,7 @@ class Finder(BaseFinder):
         self.program: List[Instruction] = program
 
     def finditer(self, text: str) -> Iterator[PTNode]:
-        return FinderState(self.program, text).finditer()
+        return FinderState(self.program, text)
 
 
 class FinderState(object):
@@ -299,6 +295,10 @@ class FinderState(object):
         self.nxt_hi.prio_later = self.nxt_lo
         self.nxt_lo.prio_former = self.nxt_hi
 
+        # __next__ related vars
+        self.index: int = 0
+        self.step_on: bool = True
+
     def _print_state(self):
         for i in range(len(self.program)):
             line = '{}.\t{}'.format(i, str(self.program[i]))
@@ -307,7 +307,7 @@ class FinderState(object):
             print(line)
         
         segs = ['cur lst: head']
-        ptr = cur_hi.prio_later
+        ptr = self.cur_hi.prio_later
         while ptr is not self.cur_lo:
             segs.append(str(ptr))
             ptr = ptr.prio_later
@@ -416,10 +416,12 @@ class FinderState(object):
             _th2 = _th2.prio_later
         return node
 
-    def eof(self):
-        yield ''
+    def __iter__(self) -> Iterator[PTNode]:
+        return self
 
-    def finditer(self) -> Iterator[PTNode]:
+    def __next__(self) -> PTNode:
+        node: Optional[PTNode] = None
+
         text = self.text
         program = self.program
         thread_map = self.thread_map
@@ -427,8 +429,18 @@ class FinderState(object):
         th: Optional[Thread]
         ins: Instruction
 
-        for index, char in enumerate(chain(iter(text), self.eof())):
-            self.thread_for_new_char(index)
+        while node is None:
+            index = self.index
+            if index == len(text):
+                char = ''
+            elif index > len(text):
+                raise StopIteration
+            else:
+                char = text[index]
+
+            if self.step_on:
+                self.thread_for_new_char(index)
+            self.step_on = True
 
             # as long as the ready ll is not empty
             while self.cur_hi.prio_later is not self.cur_lo:
@@ -446,9 +458,9 @@ class FinderState(object):
                     if th.succeed_at < 0:
                         th.succeed_at = index
                     if self.nxt_hi.prio_later is self.nxt_lo:
+                        assert node is None
                         node = self.match_done(th, text)
                         assert node is not None
-                        yield node
                     else:
                         self.move_thread_higher(th, than=self.nxt_lo)
                 elif isinstance(ins, InsCompare):
@@ -487,6 +499,10 @@ class FinderState(object):
                 else:
                     raise TypeError('Invalid Instruction Type')
 
+                if node is not None:
+                    self.step_on = False
+                    return node
+
             if DEBUG:
                 self._print_state()
 
@@ -522,13 +538,22 @@ class FinderState(object):
             # swap cur list and next list
             self.cur_hi, self.cur_lo, self.nxt_hi, self.nxt_lo = self.nxt_hi, self.nxt_lo, self.cur_hi, self.cur_lo
 
-        th = thread_map[-1]
-        if th is not None:
-            ins = program[th.pc]
-            assert isinstance(ins, InsSuccess)
-            node = self.match_done(th, text)
-            assert node is not None
-            yield node
+            # ending
+            if index == len(text):
+                th = thread_map[-1]
+                if th is not None:
+                    ins = program[th.pc]
+                    assert isinstance(ins, InsSuccess)
+                    assert node is None
+                    node = self.match_done(th, text)
+                    assert node is not None
+                
+                if node is None:
+                    raise StopIteration
+        
+            self.index += 1
+
+        return node
 
 
 def compile_pattern(pattern: Pattern) -> Finder:
