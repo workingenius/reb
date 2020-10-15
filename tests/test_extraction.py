@@ -169,3 +169,8 @@ class TestExtractionPlain(ExtractionTestCases):
 class TestExtractionVM(ExtractionTestCases):
     def case(self, pattern, text, expect_pt):
         same(pattern.extractall(text, engine='vm'), expect_pt)
+
+
+class TestExtractionVM2(ExtractionTestCases):
+    def case(self, pattern, text, expect_pt):
+        same(pattern.extractall(text, engine='vm2'), expect_pt)
