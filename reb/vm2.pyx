@@ -176,7 +176,7 @@ class InsGroupEnd(Instruction):
 
 class InsInChars(Instruction):
     """Step on only if in "chars", else fail current thread"""
-    name = 'INCHAR'
+    name = 'INCHARS'
 
     def __init__(self, chars: str):
         self.chars = chars
@@ -187,7 +187,7 @@ class InsInChars(Instruction):
 
 class InsNotInChars(Instruction):
     """Step on only if not in "chars", else fail current thread"""
-    name = 'NINCHAR'
+    name = 'NINCHARS'
 
     def __init__(self, chars: str):
         self.chars = chars
@@ -228,6 +228,86 @@ class Mark(object):
     def __repr__(self):
         return 'Mark(index={}, name={}, is_open={})'.format(
             self.index, self.name, self.is_open)
+
+
+cdef enum INS:
+    NONE,
+    START,
+    SUCCESS,
+    CMP,
+    FORKH,
+    FORKL,
+    JMP,
+    GROUPSTART,
+    GROUPEND,
+    ANY,
+    INCHARS,
+    NINCHARS,
+    STARTING,
+    ENDING
+
+
+cdef class Inst:
+    cdef:
+        INS _type
+        int to
+        str chars
+        object group_id
+
+    @staticmethod
+    cdef Inst create(INS _type = INS.NONE, int to = -1, str chars = None, group_id = None):
+        cdef Inst inst = Inst()
+        inst._type = _type
+        inst.to = to
+        inst.chars = chars
+        inst.group_id = group_id
+        return inst
+
+
+cdef list inst2inst(list inst_lst):
+    cdef Inst inst
+    ilst = []
+    for i in inst_lst:
+        inst = Inst.create()
+        ins = i
+        if isinstance(ins, InsStart):
+            inst._type = INS.START
+        elif isinstance(ins, InsSuccess):
+            inst._type = INS.SUCCESS
+        elif isinstance(ins, InsCompare):
+            inst._type = INS.CMP
+            inst.chars = ins.ch
+        elif isinstance(ins, InsForkHigher):
+            inst._type = INS.FORKH
+            inst.to = ins.to
+        elif isinstance(ins, InsForkLower):
+            inst._type = INS.FORKL
+            inst.to = ins.to
+        elif isinstance(ins, InsJump):
+            inst._type = INS.JMP
+            inst.to = ins.to
+        elif isinstance(ins, InsGroupStart):
+            inst._type = INS.GROUPSTART
+            inst.group_id = ins.group_id
+        elif isinstance(ins, InsGroupEnd):
+            inst._type = INS.GROUPEND
+            inst.group_id = ins.group_id
+        elif isinstance(ins, InsInChars):
+            inst._type = INS.INCHARS
+            inst.chars = ins.chars
+        elif isinstance(ins, InsNotInChars):
+            inst._type = INS.NINCHARS
+            inst.chars = ins.chars
+        elif isinstance(ins, InsAny):
+            inst._type = INS.ANY
+        elif isinstance(ins, InsStarting):
+            inst._type = INS.STARTING
+        elif isinstance(ins, InsEnding):
+            inst._type = INS.ENDING
+        else:
+            raise TypeError('Invalid Instruction Type')
+        ilst.append(inst)
+    return ilst
 
 
 cdef int _thread_id = 1
@@ -303,7 +383,7 @@ cdef class Thread:
 
 class Finder(BaseFinder):
     def __init__(self, program: List[Instruction]):
-        self.program: List[Instruction] = program
+        self.program: List[Instruction] = inst2inst(program)
 
     def finditer(self, text: str) -> Iterator[PTNode]:
         return FinderState.create(self.program, text)
@@ -489,6 +569,7 @@ cdef class FinderState:
         cdef list thread_map = self.thread_map
 
         cdef Thread th
+        cdef Inst ins
         # cdef Instruction ins
 
         while node is None:
@@ -514,9 +595,9 @@ cdef class FinderState:
                 assert th is not None
                 ins = program[th.pc]
 
-                if isinstance(ins, InsStart):
+                if ins._type == INS.START:
                     self.put_thread(th, pc=th.pc + 1)
-                elif isinstance(ins, InsSuccess):
+                elif ins._type == INS.SUCCESS:
                     if th.succeed_at < 0:
                         th.succeed_at = index
                     if self.nxt_hi.prio_later is self.nxt_lo:
@@ -525,43 +606,43 @@ cdef class FinderState:
                         assert node is not None
                     else:
                         self.move_thread_higher(th, than=self.nxt_lo)
-                elif isinstance(ins, InsCompare):
+                elif ins._type == INS.CMP:
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
-                elif isinstance(ins, InsForkHigher):
+                elif ins._type == INS.FORKH:
                     th1 = Thread.create(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     if self.put_thread(th1, pc=th1.pc):
                         self.move_thread_higher(th1, than=th)
                     self.put_thread(th, pc=th.pc + 1)
-                elif isinstance(ins, InsForkLower):
+                elif ins._type == INS.FORKL:
                     th1 = Thread.create(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     if self.put_thread(th1, pc=th1.pc):
                         self.move_thread_lower(th1, than=th)
                     self.put_thread(th, pc=th.pc + 1)
-                elif isinstance(ins, InsJump):
+                elif ins._type == INS.JMP:
                     self.put_thread(th, pc=ins.to)
-                elif isinstance(ins, InsGroupStart):
+                elif ins._type == INS.GROUPSTART:
                     th.marks.append(Mark(index=index, name=ins.group_id, is_open=True, depth=0))  # TODO depth
                     self.put_thread(th, pc=th.pc + 1)
-                elif isinstance(ins, InsGroupEnd):
+                elif ins._type == INS.GROUPEND:
                     th.marks.append(Mark(index=index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
                     self.put_thread(th, pc=th.pc + 1)
-                elif isinstance(ins, InsInChars):
+                elif ins._type == INS.INCHARS:
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
-                elif isinstance(ins, InsNotInChars):
+                elif ins._type == INS.NINCHARS:
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
-                elif isinstance(ins, InsAny):
+                elif ins._type == INS.ANY:
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
-                elif isinstance(ins, InsStarting):
+                elif ins._type == INS.STARTING:
                     if index == 0:
                         if self.put_thread(th, pc=th.pc + 1):
                             self.move_thread_higher(th, than=self.cur_lo)
                     else:
                         self.del_thread(th)
-                elif isinstance(ins, InsEnding):
+                elif ins._type == INS.ENDING:
                     if index == len(text):
                         if self.put_thread(th, pc=th.pc + 1):
                             self.move_thread_higher(th, than=self.cur_lo)
@@ -586,24 +667,24 @@ cdef class FinderState:
                 assert th is not None
                 th.moved = False
                 ins = program[th.pc]
-                if isinstance(ins, InsSuccess):
+                if ins._type == INS.SUCCESS:
                     pass
-                elif isinstance(ins, InsCompare):
-                    if ins.ch == ch:
+                elif ins._type == INS.CMP:
+                    if ins.chars == ch:
                         self.put_thread(th, pc=th.pc + 1, expel=False)
                     else:
                         self.del_thread(th)
-                elif isinstance(ins, InsInChars):
+                elif ins._type == INS.INCHARS:
                     if ch in ins.chars:
                         self.put_thread(th, pc=th.pc + 1, expel=False)
                     else:
                         self.del_thread(th)
-                elif isinstance(ins, InsNotInChars):
+                elif ins._type == INS.NINCHARS:
                     if ch not in ins.chars:
                         self.put_thread(th, pc=th.pc + 1, expel=False)
                     else:
                         self.del_thread(th)
-                elif isinstance(ins, InsAny):
+                elif ins._type == INS.ANY:
                     self.put_thread(th, pc=th.pc + 1, expel=False)
                 else:
                     raise TypeError
@@ -619,7 +700,7 @@ cdef class FinderState:
                 th = thread_map[-1]
                 if th is not None:
                     ins = program[th.pc]
-                    assert isinstance(ins, InsSuccess)
+                    assert ins._type == INS.SUCCESS
                     assert node is None
                     node = self.match_done(th, text)
                     assert node is not None
