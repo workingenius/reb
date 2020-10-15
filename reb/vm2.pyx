@@ -126,15 +126,15 @@ class InsSuccess(Instruction):
 
 
 class InsCompare(Instruction):
-    """Step to next instruction only if current character equals <char>, otherwise current thread fails"""
+    """Step to next instruction only if current character equals <ch>, otherwise current thread fails"""
     name = 'CMP'
 
-    def __init__(self, char: str):
-        assert len(char) <= 1
-        self.char: str = char
+    def __init__(self, ch: str):
+        assert len(ch) <= 1
+        self.ch: str = ch
 
     def __str__(self):
-        return '{} {}'.format(self.name, repr(self.char))
+        return '{} {}'.format(self.name, repr(self.ch))
 
 
 class InsForkHigher(InsPointer):
@@ -215,33 +215,58 @@ class Mark(object):
             or (self.is_close and other.is_open)
         )
 
+    def __repr__(self):
+        return 'Mark(index={}, name={}, is_open={})'.format(
+            self.index, self.name, self.is_open)
 
-_thread_id = [1]
+
+cdef int _thread_id = 1
 
 
-class Thread(object):
-    def __init__(self, pc: int, sp: int, starter: int, marks=None):
-        self.pc: int = pc  # Program Counter
-        self.sp: int = sp  # String pointer
-        self.starter: int = starter  # where does the match started in the current string
-        self.marks: List[Mark] = list(marks) if marks else []  # group start end end marks
+cdef class Thread:
+    cdef:
+        int pc
+        int sp
+        int starter
+        list marks
 
-        # Priority double ended link list
-        self.prio_former: Optional['Thread'] = None
-        self.prio_later: Optional['Thread'] = None
+        Thread prio_former
+        Thread prio_later
 
-        self.succeed_at: int = -1
-        self.moved: bool = False
+        int succeed_at
+        bint moved
+        
+        int id
 
-        self.id = _thread_id[0]
-        _thread_id[0] += 1
+    @staticmethod
+    cdef Thread create(int pc, int sp, int starter, list marks = None):
+        global _thread_id
 
-    def to_ptnode(self, text: str) -> Optional[PTNode]:
+        cdef Thread th;
+
+        th = Thread()
+        th.pc = pc
+        th.sp = sp
+        th.starter = starter
+        th.marks = list(marks) if marks else []
+
+        th.prio_former = None
+        th.prio_later = None
+
+        th.succeed_at = -1
+        th.moved = False
+
+        th.id = _thread_id
+        _thread_id += 1
+
+        return th
+
+    cdef object to_ptnode(self, str text):
         if not self.marks:
             return None
 
-        mark_stk: List[Mark] = []
-        node_stk: List[PTNode] = []
+        mark_stk = []
+        node_stk = []
 
         for m in self.marks:
             if m.is_open:
@@ -271,35 +296,54 @@ class Finder(BaseFinder):
         self.program: List[Instruction] = program
 
     def finditer(self, text: str) -> Iterator[PTNode]:
-        return FinderState(self.program, text)
+        return FinderState.create(self.program, text)
 
 
-class FinderState(object):
-    def __init__(self, program: List[Instruction], text: str):
-        self.text: str = text
+cdef class FinderState:
+    cdef:
+        str text
 
-        self.program: List[Instruction] = program
+        list program
+
+        list thread_map
+
+        Thread cur_hi
+        Thread cur_lo
+        Thread nxt_hi
+        Thread nxt_lo
+
+        int index
+        bint step_on
+
+    @staticmethod
+    cdef FinderState create(list program, str text):
+        cdef FinderState fs = FinderState()
+
+        fs.text = text
+        fs.program = program
 
         # mapping threads pc to threads
-        self.thread_map: List[Optional[Thread]] = [None] * len(program)
+        fs.thread_map = [None] * len(program)
 
         # current thread linked list
-        self.cur_hi = Thread(pc=-1, sp=-1, starter=-1)  # helper node with highest priority
-        self.cur_lo = Thread(pc=-1, sp=-1, starter=-1)  # helper node with lowest priority
-        self.cur_hi.prio_later = self.cur_lo
-        self.cur_lo.prio_former = self.cur_hi
+        fs.cur_hi = Thread.create(pc=-1, sp=-1, starter=-1)
+        fs.cur_lo = Thread.create(pc=-1, sp=-1, starter=-1)
+        fs.cur_hi.prio_later = fs.cur_lo
+        fs.cur_lo.prio_former = fs.cur_hi
 
         # next thread linked list
-        self.nxt_hi = Thread(pc=-1, sp=-1, starter=-1)  # helper node with highest priority
-        self.nxt_lo = Thread(pc=-1, sp=-1, starter=-1)  # helper node with lowest priority
-        self.nxt_hi.prio_later = self.nxt_lo
-        self.nxt_lo.prio_former = self.nxt_hi
+        fs.nxt_hi = Thread.create(pc=-1, sp=-1, starter=-1)  # helper node with highest priority
+        fs.nxt_lo = Thread.create(pc=-1, sp=-1, starter=-1)  # helper node with lowest priority
+        fs.nxt_hi.prio_later = fs.nxt_lo
+        fs.nxt_lo.prio_former = fs.nxt_hi
 
         # __next__ related vars
-        self.index: int = 0
-        self.step_on: bool = True
+        fs.index = 0
+        fs.step_on = True
 
-    def _print_state(self):
+        return fs
+
+    cdef _print_state(self):
         for i in range(len(self.program)):
             line = '{}.\t{}'.format(i, str(self.program[i]))
             if self.thread_map[i]:
@@ -326,8 +370,7 @@ class FinderState(object):
 
         print()
 
-    @staticmethod
-    def _move_thread_off(thread: Thread) -> None:
+    cdef void _move_thread_off(self, Thread thread):
         """Put a thread off from its linked list, nothing happens if it is not in a linked list"""
         if thread.prio_former is not None:
             thread.prio_former.prio_later = thread.prio_later
@@ -336,7 +379,7 @@ class FinderState(object):
         thread.prio_former = None
         thread.prio_later = None
 
-    def move_thread_higher(self, thread: Thread, than: Thread) -> None:
+    cdef void move_thread_higher(self, Thread thread, Thread than):
         self._move_thread_off(thread)
         assert than.prio_former is not None
         thread.prio_later = than
@@ -344,7 +387,7 @@ class FinderState(object):
         thread.prio_former.prio_later = thread
         thread.prio_later.prio_former = thread
 
-    def move_thread_lower(self, thread: Thread, than: Thread) -> None:
+    cdef void move_thread_lower(self, Thread thread, Thread than):
         self._move_thread_off(thread)
         assert than.prio_later is not None
         thread.prio_former = than
@@ -352,17 +395,18 @@ class FinderState(object):
         thread.prio_former.prio_later = thread
         thread.prio_later.prio_former = thread
 
-    def del_thread(self, thread: Thread) -> None:
+    cdef void del_thread(self, Thread thread):
         self._move_thread_off(thread)
         self.thread_map[thread.pc] = None
 
-    def put_thread(self, thread: Thread, pc: int, expel: bool = True) -> Optional[Thread]:
+    cdef Thread put_thread(self, Thread thread, int pc, bint expel = True):
         assert thread is not None
         if self.thread_map[thread.pc] is thread:
             self.thread_map[thread.pc] = None
 
-        to = pc
-        thread0 = self.thread_map[to]
+        cdef bint replace
+        cdef int to = pc
+        cdef Thread thread0 = self.thread_map[to]
         if thread0:
             # Should thread replace original thread0 or not
             replace = True
@@ -384,15 +428,20 @@ class FinderState(object):
         thread.pc = to
         return thread
 
-    def thread_for_new_char(self, index: int):
-        # for every new char, create a new thread
+    cdef void thread_for_new_char(self, int index):
+        cdef Thread th, th1
+        # for every new ch, create a new thread
         # it should be the lowest priority in current linked list
-        th = Thread(pc=0, sp=index, starter=index)
+        th = Thread.create(pc=0, sp=index, starter=index)
         th1 = self.put_thread(th, pc=th.pc)
         if th1:
             self.move_thread_higher(th1, than=self.cur_lo)
 
-    def match_done(self, thread: Thread, text: str) -> Optional[PTNode]:
+    cdef object match_done(self, Thread thread, str text):
+        cdef:
+            int ct
+            Thread _th1, _th2
+
         # found a match, arrange it to be PTNodes, and re-init threads
         node = thread.to_ptnode(text)
         self.del_thread(thread)
@@ -419,24 +468,27 @@ class FinderState(object):
     def __iter__(self) -> Iterator[PTNode]:
         return self
 
-    def __next__(self) -> PTNode:
+    def __next__(self):
         node: Optional[PTNode] = None
 
-        text = self.text
-        program = self.program
-        thread_map = self.thread_map
+        cdef int index
+        cdef str ch
 
-        th: Optional[Thread]
-        ins: Instruction
+        cdef str text = self.text
+        cdef list program = self.program
+        cdef list thread_map = self.thread_map
+
+        cdef Thread th
+        # cdef Instruction ins
 
         while node is None:
             index = self.index
             if index == len(text):
-                char = ''
+                ch = ''
             elif index > len(text):
                 raise StopIteration
             else:
-                char = text[index]
+                ch = text[index]
 
             if self.step_on:
                 self.thread_for_new_char(index)
@@ -467,12 +519,12 @@ class FinderState(object):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
                 elif isinstance(ins, InsForkHigher):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
+                    th1 = Thread.create(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     if self.put_thread(th1, pc=th1.pc):
                         self.move_thread_higher(th1, than=th)
                     self.put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsForkLower):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
+                    th1 = Thread.create(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
                     if self.put_thread(th1, pc=th1.pc):
                         self.move_thread_lower(th1, than=th)
                     self.put_thread(th, pc=th.pc + 1)
@@ -491,7 +543,7 @@ class FinderState(object):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
                 elif isinstance(ins, InsAssert):
-                    if ins.pred(char, index, text):
+                    if ins.pred(ch, index, text):
                         if self.put_thread(th, pc=th.pc + 1):
                             self.move_thread_higher(th, than=self.cur_lo)
                     else:
@@ -518,12 +570,12 @@ class FinderState(object):
                 if isinstance(ins, InsSuccess):
                     pass
                 elif isinstance(ins, InsCompare):
-                    if ins.char == char:
+                    if ins.ch == ch:
                         self.put_thread(th, pc=th.pc + 1, expel=False)
                     else:
                         self.del_thread(th)
                 elif isinstance(ins, InsPredicate):
-                    if ins.pred(char, index, text):
+                    if ins.pred(ch, index, text):
                         self.put_thread(th, pc=th.pc + 1, expel=False)
                     else:
                         self.del_thread(th)
