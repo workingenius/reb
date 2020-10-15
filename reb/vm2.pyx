@@ -201,6 +201,16 @@ class InsAssert(Instruction):
         return '{} {}'.format(self.name, repr(self.pred))
 
 
+class InsStarting(Instruction):
+    """If it is not at the starting, fail the thread"""
+    name = 'STARTING'
+
+
+class InsEnding(Instruction):
+    """If it is not at the ending, fail the thread"""
+    name = 'ENDING'
+
+
 class Mark(object):
     def __init__(self, index: int, name, is_open: bool, depth: int):
         self.index: int = index
@@ -548,6 +558,18 @@ cdef class FinderState:
                             self.move_thread_higher(th, than=self.cur_lo)
                     else:
                         self.del_thread(th)
+                elif isinstance(ins, InsStarting):
+                    if index == 0:
+                        if self.put_thread(th, pc=th.pc + 1):
+                            self.move_thread_higher(th, than=self.cur_lo)
+                    else:
+                        self.del_thread(th)
+                elif isinstance(ins, InsEnding):
+                    if index == len(text):
+                        if self.put_thread(th, pc=th.pc + 1):
+                            self.move_thread_higher(th, than=self.cur_lo)
+                    else:
+                        self.del_thread(th)
                 else:
                     raise TypeError('Invalid Instruction Type')
 
@@ -732,9 +754,9 @@ def _pexample_to_program(pattern: PExample) -> Program:
 
 @pattern_to_program.register(PStarting)
 def _pstarting_to_program(pattern: PStarting) -> Program:
-    return Program([InsAssert(lambda c, i, t: i == 0)])
+    return Program([InsStarting()])
 
 
 @pattern_to_program.register(PEnding)
 def _pending_to_program(pattern: PEnding) -> Program:
-    return Program([InsAssert(lambda c, i, t: i == len(t))])
+    return Program([InsEnding()])
