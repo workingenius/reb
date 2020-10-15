@@ -174,31 +174,31 @@ class InsGroupEnd(Instruction):
         return '{} {}'.format(self.name, repr(self.group_id))
 
 
-class InsPredicate(Instruction):
-    """Step on only if <pred> get True, else fail current thread"""
-    name = 'PRED'
+class InsInChars(Instruction):
+    """Step on only if in "chars", else fail current thread"""
+    name = 'INCHAR'
 
-    def __init__(self, pred):
-        self.pred: Callable[[str, int, str], bool] = pred
+    def __init__(self, chars: str):
+        self.chars = chars
 
     def __str__(self):
-        return '{} {}'.format(self.name, repr(self.pred))
+        return '{} {}'.format(self.name, self.chars)
+
+
+class InsNotInChars(Instruction):
+    """Step on only if not in "chars", else fail current thread"""
+    name = 'NINCHAR'
+
+    def __init__(self, chars: str):
+        self.chars = chars
+
+    def __str__(self):
+        return '{} {}'.format(self.name, self.chars)
 
 
 class InsAny(Instruction):
     """Step on unconditionally"""
     name = 'ANY'
-
-
-class InsAssert(Instruction):
-    """If pred is not satisfied, fail the thread"""
-    name = 'ASSERT'
-
-    def __init__(self, pred):
-        self.pred: Callable[[str, int, str], bool] = pred
-
-    def __str__(self):
-        return '{} {}'.format(self.name, repr(self.pred))
 
 
 class InsStarting(Instruction):
@@ -546,18 +546,15 @@ cdef class FinderState:
                 elif isinstance(ins, InsGroupEnd):
                     th.marks.append(Mark(index=index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
                     self.put_thread(th, pc=th.pc + 1)
-                elif isinstance(ins, InsPredicate):
+                elif isinstance(ins, InsInChars):
+                    self.move_thread_higher(th, than=self.nxt_lo)
+                    th.moved = True
+                elif isinstance(ins, InsNotInChars):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
                 elif isinstance(ins, InsAny):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
-                elif isinstance(ins, InsAssert):
-                    if ins.pred(ch, index, text):
-                        if self.put_thread(th, pc=th.pc + 1):
-                            self.move_thread_higher(th, than=self.cur_lo)
-                    else:
-                        self.del_thread(th)
                 elif isinstance(ins, InsStarting):
                     if index == 0:
                         if self.put_thread(th, pc=th.pc + 1):
@@ -596,8 +593,13 @@ cdef class FinderState:
                         self.put_thread(th, pc=th.pc + 1, expel=False)
                     else:
                         self.del_thread(th)
-                elif isinstance(ins, InsPredicate):
-                    if ins.pred(ch, index, text):
+                elif isinstance(ins, InsInChars):
+                    if ch in ins.chars:
+                        self.put_thread(th, pc=th.pc + 1, expel=False)
+                    else:
+                        self.del_thread(th)
+                elif isinstance(ins, InsNotInChars):
+                    if ch not in ins.chars:
                         self.put_thread(th, pc=th.pc + 1, expel=False)
                     else:
                         self.del_thread(th)
@@ -661,12 +663,12 @@ def _ptag_to_program(pattern: PTag) -> Program:
 
 @pattern_to_program.register(PInChars)
 def _pinchars_to_program(pattern: PInChars) -> Program:
-    return Program([InsPredicate((lambda c, i, t: c in pattern.chars))])
+    return Program([InsInChars(pattern.chars)])
 
 
 @pattern_to_program.register(PNotInChars)
 def _pnotinchars_to_program(pattern: PNotInChars) -> Program:
-    return Program([InsPredicate((lambda c, i, t: c not in pattern.chars))])
+    return Program([InsNotInChars(pattern.chars)])
 
 
 @pattern_to_program.register(PAny)
