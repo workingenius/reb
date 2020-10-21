@@ -174,15 +174,26 @@ class InsGroupEnd(Instruction):
         return '{} {}'.format(self.name, repr(self.group_id))
 
 
-class InsPredicate(Instruction):
-    """Step on only if <pred> get True, else fail current thread"""
-    name = 'PRED'
+class InsInChars(Instruction):
+    """Step on only if in "chars", else fail current thread"""
+    name = 'INCHARS'
 
-    def __init__(self, pred):
-        self.pred: Callable[[str, int, str], bool] = pred
+    def __init__(self, chars: str):
+        self.chars = chars
 
     def __str__(self):
-        return '{} {}'.format(self.name, repr(self.pred))
+        return '{} {}'.format(self.name, self.chars)
+
+
+class InsNotInChars(Instruction):
+    """Step on only if not in "chars", else fail current thread"""
+    name = 'NINCHARS'
+
+    def __init__(self, chars: str):
+        self.chars = chars
+
+    def __str__(self):
+        return '{} {}'.format(self.name, self.chars)
 
 
 class InsAny(Instruction):
@@ -190,15 +201,14 @@ class InsAny(Instruction):
     name = 'ANY'
 
 
-class InsAssert(Instruction):
-    """If pred is not satisfied, fail the thread"""
-    name = 'ASSERT'
+class InsStarting(Instruction):
+    """If it is not at the starting, fail the thread"""
+    name = 'STARTING'
 
-    def __init__(self, pred):
-        self.pred: Callable[[str, int, str], bool] = pred
 
-    def __str__(self):
-        return '{} {}'.format(self.name, repr(self.pred))
+class InsEnding(Instruction):
+    """If it is not at the ending, fail the thread"""
+    name = 'ENDING'
 
 
 class Mark(object):
@@ -484,14 +494,23 @@ class FinderState(object):
                 elif isinstance(ins, InsGroupEnd):
                     th.marks.append(Mark(index=index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
                     self.put_thread(th, pc=th.pc + 1)
-                elif isinstance(ins, InsPredicate):
+                elif isinstance(ins, InsInChars):
+                    self.move_thread_higher(th, than=self.nxt_lo)
+                    th.moved = True
+                elif isinstance(ins, InsNotInChars):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
                 elif isinstance(ins, InsAny):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
-                elif isinstance(ins, InsAssert):
-                    if ins.pred(char, index, text):
+                elif isinstance(ins, InsStarting):
+                    if index == 0:
+                        if self.put_thread(th, pc=th.pc + 1):
+                            self.move_thread_higher(th, than=self.cur_lo)
+                    else:
+                        self.del_thread(th)
+                elif isinstance(ins, InsEnding):
+                    if index == len(text):
                         if self.put_thread(th, pc=th.pc + 1):
                             self.move_thread_higher(th, than=self.cur_lo)
                     else:
@@ -522,8 +541,13 @@ class FinderState(object):
                         self.put_thread(th, pc=th.pc + 1, expel=False)
                     else:
                         self.del_thread(th)
-                elif isinstance(ins, InsPredicate):
-                    if ins.pred(char, index, text):
+                elif isinstance(ins, InsInChars):
+                    if char in ins.chars:
+                        self.put_thread(th, pc=th.pc + 1, expel=False)
+                    else:
+                        self.del_thread(th)
+                elif isinstance(ins, InsNotInChars):
+                    if char not in ins.chars:
                         self.put_thread(th, pc=th.pc + 1, expel=False)
                     else:
                         self.del_thread(th)
@@ -587,12 +611,12 @@ def _ptag_to_program(pattern: PTag) -> Program:
 
 @pattern_to_program.register(PInChars)
 def _pinchars_to_program(pattern: PInChars) -> Program:
-    return Program([InsPredicate((lambda c, i, t: c in pattern.chars))])
+    return Program([InsInChars(pattern.chars)])
 
 
 @pattern_to_program.register(PNotInChars)
 def _pnotinchars_to_program(pattern: PNotInChars) -> Program:
-    return Program([InsPredicate((lambda c, i, t: c not in pattern.chars))])
+    return Program([InsNotInChars(pattern.chars)])
 
 
 @pattern_to_program.register(PAny)
@@ -680,9 +704,9 @@ def _pexample_to_program(pattern: PExample) -> Program:
 
 @pattern_to_program.register(PStarting)
 def _pstarting_to_program(pattern: PStarting) -> Program:
-    return Program([InsAssert(lambda c, i, t: i == 0)])
+    return Program([InsStarting()])
 
 
 @pattern_to_program.register(PEnding)
 def _pending_to_program(pattern: PEnding) -> Program:
-    return Program([InsAssert(lambda c, i, t: i == len(t))])
+    return Program([InsEnding()])
