@@ -4,28 +4,15 @@ Basic ideas borrowed mainly from https://swtch.com/~rsc/regexp/regexp2.html
 """
 
 
-# TODO able to choose match engine (plain / vm) on doing pattern extractions
-# TODO make overall integrated tests and ensure the vm solves every conner case
-# TODO speed up vm
-
-
 import os
-from typing import Iterator, List, Optional, Union, Dict, Callable, Sequence, Type
-from functools import singledispatch
-from itertools import chain
-from collections import defaultdict
+from typing import Iterator, List, Optional
 
 from ..parse_tree import PTNode
-from ..pattern import (
-    Finder as BaseFinder,
-    Pattern, PText, PAnyChar, PTag, PInChars, PNotInChars,
-    PAny, PClause, PRepeat, PAdjacent,
-    PStarting, PEnding,
-    PExample)
+from ..pattern import Finder as BaseFinder, Pattern
 
 from .program import (
-    Instruction, Program, SubProgram,
-    InsPointer, InsStart, InsSuccess, InsCompare, InsForkHigher, InsForkLower,
+    Instruction,
+    InsStart, InsSuccess, InsCompare, InsForkHigher, InsForkLower,
     InsJump, InsGroupStart, InsGroupEnd, InsInChars, InsNotInChars, InsAny,
     InsStarting, InsEnding,
     Mark,

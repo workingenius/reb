@@ -1,15 +1,12 @@
-import os
-from typing import Iterator, List, Optional, Union, Dict, Callable, Sequence, Type
-from functools import singledispatch
-from itertools import chain
-from collections import defaultdict
+"""Building instructions as program for vms"""
 
-from ..parse_tree import PTNode
+
+from typing import List, Optional, Union, Type
+from functools import singledispatch
 
 from ..pattern import (
-    Finder as BaseFinder,
     Pattern, PText, PAnyChar, PTag, PInChars, PNotInChars,
-    PAny, PClause, PRepeat, PAdjacent,
+    PAny, PRepeat, PAdjacent,
     PStarting, PEnding,
     PExample)
 
