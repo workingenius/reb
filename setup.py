@@ -22,5 +22,5 @@ setup(
     },
     long_description=readme,
     long_description_content_type='text/markdown',
-    ext_modules=cythonize("reb/vm2.pyx")
+    ext_modules=cythonize("reb/vm/vm2.pyx")
 )
