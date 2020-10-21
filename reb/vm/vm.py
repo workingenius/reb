@@ -4,12 +4,11 @@ Basic ideas borrowed mainly from https://swtch.com/~rsc/regexp/regexp2.html
 """
 
 
-import os
 from typing import Iterator, List, Optional
 
 from ..parse_tree import PTNode
 from ..pattern import Finder as BaseFinder, Pattern
-
+from ..env import DEBUG
 from .program import (
     Instruction,
     InsStart, InsSuccess, InsCompare, InsForkHigher, InsForkLower,
@@ -18,9 +17,6 @@ from .program import (
     Mark,
     pattern_to_program,
 )
-
-
-DEBUG = bool(os.environ.get('REB_DEBUG'))
 
 
 _thread_id = [1]
