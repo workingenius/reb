@@ -411,10 +411,10 @@ cdef class FinderState:
                 elif ins._type == INS.JMP:
                     self.put_thread(th, pc=ins.to)
                 elif ins._type == INS.GROUPSTART:
-                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=True, depth=0))  # TODO depth
+                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=True))
                     self.put_thread(th, pc=th.pc + 1)
                 elif ins._type == INS.GROUPEND:
-                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
+                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=False))
                     self.put_thread(th, pc=th.pc + 1)
                 elif ins._type == INS.INCHARS:
                     self.move_thread_higher(th, than=self.nxt_lo)

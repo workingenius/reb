@@ -196,12 +196,11 @@ class InsEnding(Instruction):
 
 
 class Mark(object):
-    def __init__(self, index: int, name, is_open: bool, depth: int):
+    def __init__(self, index: int, name, is_open: bool):
         self.index: int = index
         self.name = name
         self.is_open: bool = bool(is_open)
         self.is_close: bool = not self.is_open
-        self.depth: int = depth
 
     def is_pair(self, other: 'Mark') -> bool:
         return isinstance(other, Mark) and self.name == other.name and (
@@ -212,7 +211,8 @@ class Mark(object):
 
 @singledispatch
 def pattern_to_program(pattern: Pattern) -> Program:
-    raise TypeError('Pattern {} can\'t compiled to vm instructions'.format(pattern.__class__))
+    raise TypeError(
+        'Pattern {} can\'t compiled to vm instructions'.format(pattern.__class__))
 
 
 @pattern_to_program.register(PText)
@@ -313,7 +313,7 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
 
     else:
         raise ValueError
-        
+
     # 3. combine the two
     return Program([prog0, prog1])
 

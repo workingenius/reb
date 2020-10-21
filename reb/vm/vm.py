@@ -282,10 +282,10 @@ class FinderState(object):
                 elif isinstance(ins, InsJump):
                     self.put_thread(th, pc=ins.to)
                 elif isinstance(ins, InsGroupStart):
-                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=True, depth=0))  # TODO depth
+                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=True))
                     self.put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsGroupEnd):
-                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=False, depth=0))  # TODO depth
+                    th.marks.append(Mark(index=index, name=ins.group_id, is_open=False))
                     self.put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsInChars):
                     self.move_thread_higher(th, than=self.nxt_lo)
