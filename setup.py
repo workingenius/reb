@@ -1,6 +1,5 @@
 from pathlib import Path
-from setuptools import setup, find_packages
-from Cython.Build import cythonize
+from setuptools import setup, find_packages, Extension
 
 projdir = Path(__file__).parent
 readme = (projdir / 'README.md').read_text()
@@ -15,12 +14,12 @@ setup(
     description='Regular Expression Beautiful',
     license='MIT',
     extras_require={
-        'dev': ['pytest', 'mypy'],
+        'dev': ['pytest', 'mypy', 'cython'],
     },
     entry_points={
         'console_scripts': ['reb=reb.cli:main']
     },
     long_description=readme,
     long_description_content_type='text/markdown',
-    ext_modules=cythonize("reb/vm/vm2.pyx")
+    ext_modules=[Extension('reb.vm.vm2', ['reb/vm/vm2.c'])]
 )
