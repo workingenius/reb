@@ -5,7 +5,7 @@ from .parse_tree import PTNode, VirtualPTNode
 from .exceptions import RebException, InvalidPattern, ExampleFail
 
 
-DEFAULT_ENGINE = 'plain'
+DEFAULT_ENGINE = 'vm2'
 
 
 class Finder(object):
