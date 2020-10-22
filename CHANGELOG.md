@@ -1,6 +1,13 @@
 reb's CHANGELOG
 ================
 
+0.1.1
+-----
+*(October 22nd, 2020)*
+
++ Speed up vm by cython
++ Change default implement to cython vm
+
 0.1.0
 -----
 *(October 9th, 2020)*
@@ -11,7 +18,7 @@ reb's CHANGELOG
 
 0.0.4
 -----
-*(October 3rh, 2020)*
+*(October 3rd, 2020)*
 
 + Add a new match engine, implemented by re virtual machine in pure python
 + Add a new option to `reb` command to select match engine
@@ -37,7 +44,6 @@ reb's CHANGELOG
 + Implement example feature
 + Add new patterns: `P.STARTING`, `P.ENDING` and `P.NEWLINE`
 + Simulate re interface, adding `Pattern.finditer` and `Pattern.findall` methods
-
 
 0.0.1
 -----
