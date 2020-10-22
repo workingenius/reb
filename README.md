@@ -2,6 +2,8 @@
 
 # reb -- Regular Expression Beautiful
 
+![Auto test](https://github.com/workingenius/reb/workflows/Auto%20test/badge.svg)
+
 To make **infomation extraction with patterns** easier, reb tries to improve traditional re in some ways:
 
 * Maintainability
