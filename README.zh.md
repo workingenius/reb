@@ -1,5 +1,7 @@
 # reb -- Regular Expression Beautiful
 
+![Auto test](https://github.com/workingenius/reb/workflows/Auto%20test/badge.svg)
+
 在用模式匹配进行文本信息抽取时，为了使其过程更简便，reb 尝试在一下几点改进传统正则表达式：
 
 * 可维护性
