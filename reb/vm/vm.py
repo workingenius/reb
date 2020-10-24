@@ -13,7 +13,7 @@ from .program import (
     Instruction,
     InsStart, InsSuccess, InsCompare, InsForkHigher, InsForkLower,
     InsJump, InsGroupStart, InsGroupEnd, InsInChars, InsNotInChars, InsAny,
-    InsStarting, InsEnding,
+    InsStarting, InsEnding, InsResetAdvanced, InsAssertAdvanced,
     Mark,
     pattern_to_program,
 )
@@ -23,7 +23,7 @@ _thread_id = [1]
 
 
 class Thread(object):
-    def __init__(self, pc: int, sp: int, starter: int, marks=None):
+    def __init__(self, pc: int, sp: int, starter: int, marks=None, advanced: bool = False):
         self.pc: int = pc  # Program Counter
         self.sp: int = sp  # String pointer
         self.starter: int = starter  # where does the match started in the current string
@@ -38,6 +38,18 @@ class Thread(object):
 
         self.id = _thread_id[0]
         _thread_id[0] += 1
+
+        # if the thread has passed through some characters in a loop
+        self.advanced = advanced
+
+    def copy(self, pc: int = None, sp: int = None, starter: int = None, marks = None, advanced: bool = None) -> 'Thread':
+        return Thread(
+            pc=pc if pc is not None else self.pc,
+            sp=sp if sp is not None else self.sp,
+            starter=starter if starter is not None else self.starter,
+            marks=marks if marks else self.marks,
+            advanced=advanced if advanced is not None else self.advanced,
+        )
 
     def to_ptnode(self, text: str) -> Optional[PTNode]:
         if not self.marks:
@@ -269,13 +281,14 @@ class FinderState(object):
                 elif isinstance(ins, InsCompare):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
+                    th.advanced = True
                 elif isinstance(ins, InsForkHigher):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
+                    th1 = th.copy(pc=ins.to, sp=index)
                     if self.put_thread(th1, pc=th1.pc):
                         self.move_thread_higher(th1, than=th)
                     self.put_thread(th, pc=th.pc + 1)
                 elif isinstance(ins, InsForkLower):
-                    th1 = Thread(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
+                    th1 = th.copy(pc=ins.to, sp=index)
                     if self.put_thread(th1, pc=th1.pc):
                         self.move_thread_lower(th1, than=th)
                     self.put_thread(th, pc=th.pc + 1)
@@ -290,12 +303,15 @@ class FinderState(object):
                 elif isinstance(ins, InsInChars):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
+                    th.advanced = True
                 elif isinstance(ins, InsNotInChars):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
+                    th.advanced = True
                 elif isinstance(ins, InsAny):
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
+                    th.advanced = True
                 elif isinstance(ins, InsStarting):
                     if index == 0:
                         if self.put_thread(th, pc=th.pc + 1):
@@ -306,6 +322,14 @@ class FinderState(object):
                     if index == len(text):
                         if self.put_thread(th, pc=th.pc + 1):
                             self.move_thread_higher(th, than=self.cur_lo)
+                    else:
+                        self.del_thread(th)
+                elif isinstance(ins, InsResetAdvanced):
+                    th.advanced = False
+                    self.put_thread(th, pc=th.pc + 1)
+                elif isinstance(ins, InsAssertAdvanced):
+                    if th.advanced:
+                        self.put_thread(th, pc=th.pc + 1)
                     else:
                         self.del_thread(th)
                 else:

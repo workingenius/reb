@@ -13,7 +13,7 @@ from .program import (
     Instruction,
     InsPointer, InsStart, InsSuccess, InsCompare, InsForkHigher, InsForkLower,
     InsJump, InsGroupStart, InsGroupEnd, InsInChars, InsNotInChars, InsAny,
-    InsStarting, InsEnding,
+    InsStarting, InsEnding, InsResetAdvanced, InsAssertAdvanced,
     Mark,
     pattern_to_program,
 )
@@ -33,7 +33,29 @@ cdef enum INS:
     INCHARS,
     NINCHARS,
     STARTING,
-    ENDING
+    ENDING,
+    RESET_ADVANCED,
+    ASSERT_ADVANCED,
+
+
+INS_NAMES = {
+    INS.NONE: 'NONE',
+    INS.START: 'START',
+    INS.SUCCESS: 'SUCCESS',
+    INS.CMP: 'CMP',
+    INS.FORKH: 'FORKH',
+    INS.FORKL: 'FORKL',
+    INS.JMP: 'JMP',
+    INS.GROUPSTART: 'GROUPSTART',
+    INS.GROUPEND: 'GROUPEND',
+    INS.ANY: 'ANY',
+    INS.INCHARS: 'INCHARS',
+    INS.NINCHARS: 'NINCHARS',
+    INS.STARTING: 'STARTING',
+    INS.ENDING: 'ENDING',
+    INS.RESET_ADVANCED: 'RESET_ADVANCED',
+    INS.ASSERT_ADVANCED: 'ASSERT_ADVANCED',
+}
 
 
 cdef class Inst:
@@ -51,6 +73,16 @@ cdef class Inst:
         inst.chars = chars
         inst.group_id = group_id
         return inst
+
+    def __str__(self):
+        s = [str(INS_NAMES[self._type])]
+        if self.to != -1:
+            s.append(str(self.to))
+        if self.chars:
+            s.append(str(self.chars))
+        if self.group_id is not None:
+            s.append(str(self.group_id))
+        return ' '.join(s)
 
 
 cdef list inst2inst(list inst_lst):
@@ -93,6 +125,10 @@ cdef list inst2inst(list inst_lst):
             inst._type = INS.STARTING
         elif isinstance(ins, InsEnding):
             inst._type = INS.ENDING
+        elif isinstance(ins, InsResetAdvanced):
+            inst._type = INS.RESET_ADVANCED
+        elif isinstance(ins, InsAssertAdvanced):
+            inst._type = INS.ASSERT_ADVANCED
         else:
             raise TypeError('Invalid Instruction Type')
         ilst.append(inst)
@@ -117,11 +153,14 @@ cdef class Thread:
         
         int id
 
+        # if the thread has passed through some characters in a loop
+        bint advanced
+
     @staticmethod
-    cdef Thread create(int pc, int sp, int starter, list marks = None):
+    cdef Thread create(int pc, int sp, int starter, list marks = None, bint advanced = False):
         global _thread_id
 
-        cdef Thread th;
+        cdef Thread th
 
         th = Thread()
         th.pc = pc
@@ -137,6 +176,8 @@ cdef class Thread:
 
         th.id = _thread_id
         _thread_id += 1
+
+        th.advanced = advanced
 
         return th
 
@@ -398,13 +439,14 @@ cdef class FinderState:
                 elif ins._type == INS.CMP:
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
+                    th.advanced = True
                 elif ins._type == INS.FORKH:
-                    th1 = Thread.create(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
+                    th1 = Thread.create(pc=ins.to, sp=index, starter=th.starter, marks=th.marks, advanced=th.advanced)
                     if self.put_thread(th1, pc=th1.pc):
                         self.move_thread_higher(th1, than=th)
                     self.put_thread(th, pc=th.pc + 1)
                 elif ins._type == INS.FORKL:
-                    th1 = Thread.create(pc=ins.to, sp=index, starter=th.starter, marks=th.marks)
+                    th1 = Thread.create(pc=ins.to, sp=index, starter=th.starter, marks=th.marks, advanced=th.advanced)
                     if self.put_thread(th1, pc=th1.pc):
                         self.move_thread_lower(th1, than=th)
                     self.put_thread(th, pc=th.pc + 1)
@@ -419,12 +461,15 @@ cdef class FinderState:
                 elif ins._type == INS.INCHARS:
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
+                    th.advanced = True
                 elif ins._type == INS.NINCHARS:
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
+                    th.advanced = True
                 elif ins._type == INS.ANY:
                     self.move_thread_higher(th, than=self.nxt_lo)
                     th.moved = True
+                    th.advanced = True
                 elif ins._type == INS.STARTING:
                     if index == 0:
                         if self.put_thread(th, pc=th.pc + 1):
@@ -435,6 +480,14 @@ cdef class FinderState:
                     if index == len(text):
                         if self.put_thread(th, pc=th.pc + 1):
                             self.move_thread_higher(th, than=self.cur_lo)
+                    else:
+                        self.del_thread(th)
+                elif ins._type == INS.RESET_ADVANCED:
+                    th.advanced = False
+                    self.put_thread(th, pc=th.pc + 1)
+                elif ins._type == INS.ASSERT_ADVANCED:
+                    if th.advanced:
+                        self.put_thread(th, pc=th.pc + 1)
                     else:
                         self.del_thread(th)
                 else:

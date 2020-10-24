@@ -160,13 +160,17 @@ class ExtractionTestCases(object):
     def test_overall8_4(self):
         self.case(P.n01('a' + P.n('b', greedy=False), greedy=False), 'abbb', [])
 
+    def test_overall9(self):
+        ptn = P.n(P.n('a'))
+        self.case(ptn, 'aaa', ['aaa'])
+
 
 class TestExtractionPlain(ExtractionTestCases):
     def case(self, pattern, text, expect_pt):
         same(pattern.extractall(text, engine='plain'), expect_pt)
 
 
-class TestExtractionVM(ExtractionTestCases):
+class TestExtractionVM1(ExtractionTestCases):
     def case(self, pattern, text, expect_pt):
         same(pattern.extractall(text, engine='vm'), expect_pt)
 

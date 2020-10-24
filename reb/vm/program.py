@@ -195,6 +195,16 @@ class InsEnding(Instruction):
     name = 'ENDING'
 
 
+class InsResetAdvanced(Instruction):
+    """Reset thread <moved> to false"""
+    name = 'RESET_ADVANCED'
+
+
+class InsAssertAdvanced(Instruction):
+    """Fail if thread is not moved"""
+    name = 'ASSERT_ADVANCED'
+
+
 class Mark(object):
     def __init__(self, index: int, name, is_open: bool):
         self.index: int = index
@@ -287,7 +297,9 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
     if to is None:
         prog1 = Program([
             # fork over
+            InsResetAdvanced(),
             subprog,
+            InsAssertAdvanced(),
             # jump back
         ])
         prog1.prepend(fork_cls(program=prog1, to_ending=True))
