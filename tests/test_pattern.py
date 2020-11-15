@@ -44,8 +44,8 @@ def test_tag_match():
     ptn2 = P.tag(P.ANYCHAR, tag='2')
 
     assert ptn0.extract('a')[0].tag is None
-    assert ptn1.extract('a')[0].tag == '1'
-    assert ptn2.extract('b')[0].tag == '2'
+    assert ptn1.extract('a')[0].simplify().tag == '1'
+    assert ptn2.extract('b')[0].simplify().tag == '2'
 
 
 def test_in_chars():
@@ -112,28 +112,33 @@ def test_repeat_match2():
     assert len(ptn2.extract('aaaaaaaaa')) == 1
 
 
+def assert_extraction_eq(ex1, ex2):
+    _ex2 = [pt.simplify() for pt in ex2]
+    assert ex1 == _ex2
+
+
 def test_prepeat_match3():
     ptn = P.n('a', 1, 3)
-    assert ptn.extract('') == []
-    assert ptn.extract('a') == [
+    assert_extraction_eq(ptn.extract(''), [])
+    assert_extraction_eq(ptn.extract('a'), [
         PTNode('a', 0, 1, children=[
             PTNode('a', 0, 1)
         ])
-    ]
-    assert ptn.extract('aa') == [
+    ])
+    assert_extraction_eq(ptn.extract('aa'), [
         PTNode('aa', 0, 2, children=[
             PTNode('aa', 0, 1),
             PTNode('aa', 1, 2)
         ])
-    ]
-    assert ptn.extract('aaa') == [
+    ])
+    assert_extraction_eq(ptn.extract('aaa'), [
         PTNode('aaa', 0, 3, children=[
             PTNode('aaa', 0, 1),
             PTNode('aaa', 1, 2),
             PTNode('aaa', 2, 3)
         ])
-    ]
-    assert ptn.extract('aaaa') == [
+    ])
+    assert_extraction_eq(ptn.extract('aaaa'), [
         PTNode('aaaa', 0, 3, children=[
             PTNode('aaaa', 0, 1),
             PTNode('aaaa', 1, 2),
@@ -142,7 +147,7 @@ def test_prepeat_match3():
         PTNode('aaaa', 3, 4, children=[
             PTNode('aaaa', 3, 4)
         ])
-    ]
+    ])
 
 
 def test_repeat_match4():
@@ -154,14 +159,14 @@ def test_repeat_match4():
 def test_repeat_match5():
     ptn = P.n('a', greedy=False) + P.n('b')
     text = 'aabb'
-    assert ptn.extract(text) == [
+    assert_extraction_eq(ptn.extract(text), [
         PTNode(text, 2, 4, children=[
             PTNode(text, 2, 4, children=[
                 PTNode(text, 2, 3),
                 PTNode(text, 3, 4),
             ]),
         ]),
-    ]
+    ])
 
 
 def test_repeat_match6():
@@ -169,18 +174,18 @@ def test_repeat_match6():
     assert ptn.extract('') == []
 
     text = 'aaa'
-    assert ptn.extract(text) == [PTNode(text, 0, 3, children=[
+    assert_extraction_eq(ptn.extract(text), [PTNode(text, 0, 3, children=[
         PTNode(text, 0, 1),
         PTNode(text, 1, 2),
         PTNode(text, 2, 3),
-    ])]
+    ])])
 
     text = 'aaaaa'
-    assert ptn.extract(text) == [PTNode(text, 0, 3, children=[
+    assert_extraction_eq(ptn.extract(text), [PTNode(text, 0, 3, children=[
         PTNode(text, 0, 1),
         PTNode(text, 1, 2),
         PTNode(text, 2, 3),
-    ])]
+    ])])
 
 
 def test_repeat_7():
@@ -210,25 +215,25 @@ def test_dropped():
     ptn = P.n('aba')
 
     text = 'abababa'
-    assert ptn.extract(text) == [
+    assert_extraction_eq(ptn.extract(text), [
         PTNode(text, 0, 3, children=[
             PTNode(text, 0, 3)
         ]),
         PTNode(text, 4, 7, children=[
             PTNode(text, 4, 7)
         ])
-    ]
+    ])
 
     text2 = 'a1x2'
     ptn2 = P.ic('abc') + P.ic('123') + P.ic('xyz') + P.ic('123')
-    assert ptn2.extract(text2) == [
+    assert_extraction_eq(ptn2.extract(text2), [
         PTNode(text2, 0, 4, children=[
             PTNode(text2, 0, 1),
             PTNode(text2, 1, 2),
             PTNode(text2, 2, 3),
             PTNode(text2, 3, 4),
         ])
-    ]
+    ])
 
 
 def test_match_recursion_max_limit():
@@ -241,13 +246,18 @@ def test_match_recursion_max_limit():
 def test_repeat_zero_spans():
     ptn = P.n(P.n('a'))
 
-    assert ptn.extract('') == []
-    assert ptn.extract('a') == [PTNode('a', 0, 1, children=[
-        PTNode('a', 0, 1, children=[PTNode('a', 0, 1)])])]
-    assert ptn.extract('b') == []
-    assert ptn.extract('bba') == [PTNode('bba', 2, 3, children=[
-        PTNode('bba', 2, 3, children=[PTNode('bba', 2, 3)])])]
-    assert ptn.extract('bbaaa') == [
+    assert_extraction_eq(ptn.extract(''), [])
+    assert_extraction_eq(ptn.extract('a'), [PTNode('a', 0, 1, children=[
+        PTNode('a', 0, 1, children=[PTNode('a', 0, 1)])])])
+    assert_extraction_eq(ptn.extract('b'), [])
+    assert_extraction_eq(ptn.extract('bba'), [
+        PTNode('bba', 2, 3, children=[
+            PTNode('bba', 2, 3, children=[
+                PTNode('bba', 2, 3)
+            ])
+        ])
+    ])
+    assert_extraction_eq(ptn.extract('bbaaa'), [
         PTNode('bbaaa', 2, 5, children=[
             PTNode('bbaaa', 2, 3, children=[
                 PTNode('bbaaa', 2, 3)
@@ -259,44 +269,52 @@ def test_repeat_zero_spans():
                 PTNode('bbaaa', 4, 5)
             ]),
         ])
-    ]
+    ])
 
 
 def test_pstarting1():
     ptn = P.STARTING + 'abc'
-    assert ptn.extract('abc') == [PTNode('abc', 0, 3, children=[
-        PTNode('abc', 0, 0),
-        PTNode('abc', 0, 3),
-    ])]
+    assert_extraction_eq(ptn.extract('abc'), [
+        PTNode('abc', 0, 3, children=[
+            PTNode('abc', 0, 0),
+            PTNode('abc', 0, 3),
+        ])
+    ])
     assert ptn.extract(' abc') == []
 
 
 def test_pending1():
     ptn = 'abc' + P.ENDING
-    assert ptn.extract('abc') == [PTNode('abc', 0, 3, children=[
-        PTNode('abc', 0, 3),
-        PTNode('abc', 3, 3),
-    ])]
-    assert ptn.extract('abc ') == []
+    assert_extraction_eq(ptn.extract('abc'), [
+        PTNode('abc', 0, 3, children=[
+            PTNode('abc', 0, 3),
+            PTNode('abc', 3, 3),
+        ])
+    ])
+    assert_extraction_eq(ptn.extract('abc '), [])
 
 
 def test_pnewline1():
     ptn = 'abc' + P.NEWLINE + 'abc'
-    assert ptn.extract('abcabc') == []
+    assert_extraction_eq(ptn.extract('abcabc'), [])
 
     text = 'abc\nabc'
-    assert ptn.extract(text) == [PTNode(text, 0, 7, children=[
-        PTNode(text, 0, 3),
-        PTNode(text, 3, 4),
-        PTNode(text, 4, 7),
-    ])]
+    assert_extraction_eq(ptn.extract(text), [
+        PTNode(text, 0, 7, children=[
+            PTNode(text, 0, 3),
+            PTNode(text, 3, 4),
+            PTNode(text, 4, 7),
+        ])
+    ])
 
     text = 'abc\r\nabc'
-    assert ptn.extract(text) == [PTNode(text, 0, 8, children=[
-        PTNode(text, 0, 3),
-        PTNode(text, 3, 5),
-        PTNode(text, 5, 8),
-    ])]
+    assert_extraction_eq(ptn.extract(text), [
+        PTNode(text, 0, 8, children=[
+            PTNode(text, 0, 3),
+            PTNode(text, 3, 5),
+            PTNode(text, 5, 8),
+        ])
+    ])
 
 
 class TestRebBehaviourSameAsRE(object):
