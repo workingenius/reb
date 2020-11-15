@@ -321,6 +321,8 @@ class TestRebBehaviourSameAsRE(object):
     def ensure_behaviour_same(self, pattern, text: str):
         l0 = list(re.compile(pattern.re).finditer(text))
         l1 = list(pattern.finditer(text))
+        l0 = [m for m in l0 if m.end() - m.start()]
+        l1 = [m for m in l1 if m.end() - m.start()]
         assert len(l0) == len(l1)
         for m0, n1 in zip(l0, l1):
             assert m0.start() == n1.start()
