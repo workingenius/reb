@@ -87,6 +87,10 @@ class PTNode(object):
         """Show tree structure in detail, designed for pdb debugging"""
         show_tree(self)
 
+    def simplify(self):
+        """Convert parse tree to a standardized, simplified form with equal meaning"""
+        return simplify_pt(self)
+
 
 class VirtualPTNode(PTNode):
     """A class of nodes that is transparent to callers"""
@@ -169,3 +173,36 @@ def pretty_print_tree(tree: PTNode):
         ws += colored(right_str, attrs=['dark'])
 
         print(ws)
+
+
+def simplify_pt(pt: PTNode) -> PTNode:
+    nc = _simplify_pt(pt)
+
+    if not nc:
+        return PTNode(pt.text, pt.start(), pt.end(), tag=pt.tag)
+
+    if len(nc) == 1:
+        if pt.start() == nc[0].start() and pt.end() == nc[0].end():
+            return nc[0]
+
+    return PTNode(pt.text, pt.start(), pt.end(), tag=pt.tag, children=nc)
+
+
+def _simplify_pt(pt: PTNode) -> List[PTNode]:
+    if not pt.children and not pt.tag:
+        return []
+
+    elif not pt.children and pt.tag:
+        return [pt]
+
+    nc = []
+    for s in pt.children:
+        nc.extend(_simplify_pt(s))
+
+    if not pt.tag:
+        if len(nc) == 0:
+            return []
+        elif len(nc) == 1:
+            return nc
+    
+    return [PTNode(pt.text, pt.start(), pt.end(), children=nc, tag=pt.tag)]
