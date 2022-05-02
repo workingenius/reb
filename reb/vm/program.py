@@ -3,6 +3,7 @@
 
 from typing import List, Optional, Union, Type
 from functools import singledispatch
+from collections import defaultdict
 
 from ..pattern import (
     Pattern, PText, PAnyChar, PTag, PInChars, PNotInChars,
@@ -14,9 +15,6 @@ from ..pattern import (
 class Instruction(object):
     """Instruction of the VM"""
     name: Optional[str] = None
-
-    def ready(self):
-        """Mark instruction as ready and should not be modified any more"""
 
     def __str__(self):
         return str(self.name)
@@ -42,29 +40,7 @@ class Program(object):
 
     def dump(self, offset: int = 0) -> List[Instruction]:
         """Dump to a list of instructions for execution"""
-        inst_lst = [
-            InsStart(),
-            InsGroupStart(group_id=None)
-        ] + self._dump(offset=2) + [
-            InsGroupEnd(group_id=None),
-            InsSuccess()
-        ]
-        for inst in inst_lst:
-            inst.ready()
-        return inst_lst
-
-    def _dump(self, offset: int = 0) -> List[Instruction]:
-        """Dump to a list of instructions for execution"""
-        self.offset = offset
-        inst_lst: List[Instruction] = []
-        for s in self.sub:
-            if isinstance(s, Instruction):
-                inst_lst.append(s)
-            elif isinstance(s, Program):
-                ilst = s._dump(offset=offset + len(inst_lst))
-                inst_lst.extend(ilst)
-        self.inst_count = len(inst_lst)
-        return inst_lst
+        return dump_prog(self)
 
     def prepend(self, prog: 'SubProgram'):
         self.sub = [prog] + self.sub
@@ -72,11 +48,52 @@ class Program(object):
     def append(self, prog: 'SubProgram'):
         self.sub.append(prog)
 
-    def copy(self):
-        return Program(list(self.sub))
-
 
 SubProgram = Union[Instruction, Program]
+
+
+def dump_prog(prog: SubProgram) -> List[Instruction]:
+    ins_lst : List[Instruction] = []
+    ptr_lst_dct = defaultdict(list)
+    dumping_prog = []
+
+    def _dump_prog(sp):
+        if isinstance(sp, InsPointer):
+            ptr_lst_dct[sp.program].append(sp)
+            ins_lst.append(sp)
+        if isinstance(sp, Instruction):
+            ins_lst.append(sp)
+        elif isinstance(sp, Program):
+            if sp in dumping_prog:
+                raise Exception("Infinite loop")
+            else:
+                dumping_prog.append(sp)
+            start = len(ins_lst)
+            for s in sp.sub:
+                _dump_prog(s)
+            end = len(ins_lst)
+            for ptr in ptr_lst_dct.get(sp, []):
+                if ptr.to_ending:
+                    ptr.to = end
+                else:
+                    ptr.to = start
+            dumping_prog.pop()
+
+    for ins in ins_lst:
+        if isinstance(ins, InsPointer):
+            assert ins.to != -1
+
+    _dump_prog(Program(
+        [
+            InsStart(),
+            InsGroupStart(group_id=None),
+            prog,
+            InsGroupEnd(group_id=None),
+            InsSuccess()
+        ]
+    ))
+
+    return ins_lst
 
 
 class InsPointer(Instruction):
@@ -86,14 +103,6 @@ class InsPointer(Instruction):
         self.program = program
         self.to_ending: bool = to_ending
         self.to: int = -1
-
-    def ready(self):
-        assert self.program.offset >= 0
-        if self.to_ending:
-            self.to = self.program.offset + self.program.inst_count
-        else:
-            self.to = self.program.offset
-        assert self.to >= 0
 
     def __str__(self):
         return '{} {}'.format(self.name, self.to)
@@ -289,7 +298,7 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
         fork_cls = InsForkHigher
 
     # 1. 0-fr as prog0
-    prog0 = Program([subprog.copy() for i in range(fr)])
+    prog0 = Program([subprog for i in range(fr)])
 
     # 2. fr-to as prog1
 
@@ -312,13 +321,13 @@ def _prepeat_to_program(pattern: PRepeat) -> Program:
     elif to > fr:
         prog1 = Program([
             # fork over
-            subprog.copy(),
+            subprog,
         ])
         prog1.prepend(fork_cls(program=prog1, to_ending=True))
         for i in range(to - fr - 1):
             prog1 = Program([
                 # fork over
-                subprog.copy(),
+                subprog,
                 prog1,
             ])
             prog1.prepend(fork_cls(program=prog1, to_ending=True))
