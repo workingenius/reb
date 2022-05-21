@@ -4,21 +4,21 @@
 
 ![Auto test](https://github.com/workingenius/reb/workflows/Auto%20test/badge.svg)
 
-To make **infomation extraction with patterns** easier, reb tries to improve traditional re in some ways:
+To make **information extraction with patterns** easier, reb tries to improve traditional re in some ways:
 
 * Maintainability
 * Reusability
 * Readability
 
-In order for that, several ideas are intruduced:
+For that, several ideas are introduced:
 
 * A pythonic pattern style
-* Examples make read and write easier
+* Examples make reading and writing easier
 * Return parse tree rather than "Match Object"
 
 ## A simple case for first impression
 
-reb helps write regular expressions in a compasable and more readable style. Take url parsing and extracting as an example.
+reb helps write regular expressions in a composable and more readable style. Take url parsing and extracting as an example.
 
 According to [rfc3986](https://tools.ietf.org/html/rfc3986), a simple regular expression that matches urls:
 
@@ -47,15 +47,15 @@ url = P.tag(P.n01(scheme), tag='scheme') \
         + P.tag(fragment, tag='fragment')
 ```
 
-And here is how the match goes. It can be seen by command line tool `reb` :
+And here is how the match goes. It can be seen by the command-line tool `reb`:
 
 ![reb show how url matches](./images/url.png)
 
-As it shows, tagged partes are filled with different colors, so that scheme, hierachy, query, fragment in the url are extracted.
+As it shows, tagged parts are filled with different colors, so that scheme, hierarchy, query, and fragment in the url are extracted.
 
 ## Work with examples
 
-Sometimes it is also hard to "parse" reb patterns with eyes and figure out what cases it matches. Naming helps writing explicit expressions, and another way to make it more readable is to bind pattern with examples.
+Sometimes it is also hard to "parse" reb patterns with eyes and figure out which cases it matches. Naming helps writing explicit expressions, and another way to make it more readable is to bind patterns with examples.
 
 ``` python
 from reb import P
@@ -93,13 +93,13 @@ url = P.tag(P.n01(scheme), tag='scheme') \
         + P.tag(fragment, tag='fragment')
 ```
 
-In the code above, each part of the pattern are bound with examples.
+In the code above, each part of the pattern is bound with examples.
 
-Examples do not change matches and extractions, but during the declaration (creation) of the pattern, a validation is done, ensuring the pattern appears in each of the example given. With well selected examples, code readers (somebody else or maybe the author 3 months later) will get something on seeing them: maybe cases that the expression was derived from, or the purpose of it. It is designed as a mechanism to explicitly "encode" our thinkings together with patterns on writing, and trace them back on reading. Pattern authors can use examples to convey more information to readers, and "make an agreement" easier with maintainers. **So examples work like comments**, but well, "explicit is better than implicit".
+Examples do not change matches and extractions, but during the declaration (creation) of the pattern, a validation is done, ensuring the pattern appears in each of the examples given. With well-selected examples, code readers (somebody else or maybe the author 3 months later) will get something from seeing them: perhaps cases that the expression was derived from, or the purpose of it. It is designed as a mechanism to explicitly "encode" our thoughts together with patterns in writing, and trace them back on reading. Pattern authors can use examples to convey more information to readers, and "make an agreement" easier with maintainers. **So examples work like comments**, but well, "explicit is better than implicit".
 
-Regular expressions are widely used in some information extraction tasks on natural languages. As corpus goes complex, the re we write tend to become big and long, which is difficult to read and understand, not to mention to modify them. Even if patterns are divided into small parts, it is still a hard job to maintain or extend them, partly because no alarm happens when good cases turn bad. So **on the other hand, examples work as a sort of test**. With a careless pattern modification, one of the example may fails the creation of the pattern, which in turns alarms coders to pay attention in the first place.
+Regular expressions are widely used in some information extraction tasks in natural languages. As corpus goes complex, the regular expressions we write tend to become big and long, which is difficult to read and understand, not to mention to modify. Even if patterns are divided into small parts, it is still a hard job to maintain or extend them, partly because no alarm happens when good cases turn bad. So **on the other hand, examples work as a sort of test**. With a careless pattern modification, one of the examples may fail the creation of the pattern, which in turn alarms coders to pay attention in the first place.
 
-## Match more than one groups with same tag
+## Match more than one group with same tag
 
 Queries in url can be joined with "&", like passing multiple arguments. What if we want to extract each argument and its value? We may want to write traditional re like this:
 
@@ -107,13 +107,13 @@ Queries in url can be joined with "&", like passing multiple arguments. What if 
 \?(?P<query>[^#&]*)(&(?P<query>[^#&]*))*
 ```
 
-Unfortunately, it raises an re compile error, complaining that the same group "query" is declared more than once.
+Unfortunately, it raises an compile error, complaining that the same group "query" is declared more than once.
 
 ```text
 sre_constants.error: redefinition of group name 'query' as group 3; was group 1 at position 25
 ```
 
-In information extraction area, it is a common demand to tag two or more different text segment with a same label. In reb, it can be done by tag, like:
+In the information extraction area, it is a common demand to tag two or more different text segments with the same label. In reb, it can be done by tag, like:
 
 ``` python
 from reb import P
@@ -154,7 +154,7 @@ url = P.tag(P.n01(scheme), tag='scheme') \
 
 ```
 
-The green texts show that, each "a\_query" is extracted and tagged.
+The green texts show that each "a\_query" is extracted and tagged.
 
 ![Match more than one groups with same tag](./images/url3.png)
 
