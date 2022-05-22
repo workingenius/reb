@@ -22,12 +22,13 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install setuptools twine Cython==0.29.21
-    - name: Overriding module version with git tag
+    - name: Overwrite module version with git tag
       run: |
         tag=${{ github.ref }}
         ver=${tag##*/}
         sed "s/version='.*'/version='${ver}'/g" setup.py > setup2.py
         mv setup2.py setup.py
+        echo "Version has been overwritten to ${ver}"
     - name: Build and publish
       env:
         TWINE_USERNAME: ${{ secrets.TEST_PYPI_USERNAME }}
