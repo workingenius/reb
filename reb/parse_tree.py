@@ -126,7 +126,7 @@ def pretty_print_tree(tree: PTNode):
     try:
         from termcolor import colored
     except ImportError:
-        print('Module termcolor is needed')
+        print('Module termcolor is needed, please do\n\tpip install termcolor')
 
     else:
         # for i in tag_lst, tag_lst[i] is the tag most close to the leaf
