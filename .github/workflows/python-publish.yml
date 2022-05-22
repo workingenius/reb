@@ -31,9 +31,9 @@ jobs:
         echo "Version has been overwritten to ${ver}"
     - name: Build and publish
       env:
-        TWINE_USERNAME: ${{ secrets.TEST_PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.TEST_PYPI_PASSWORD }}
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
       run: |
         cythonize reb/vm/vm2.pyx
         python setup.py sdist
-        twine upload -r testpypi dist/*
+        twine upload -r pypi dist/*
